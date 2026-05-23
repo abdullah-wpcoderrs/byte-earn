@@ -1,9 +1,18 @@
 import { Link2 } from "lucide-react";
+import { notFound } from "next/navigation";
 import { PostGrid } from "@/components/profile/post-grid";
 import { ReferralShareButton } from "@/components/share/referral-share-button";
+import { getPublicProfileData } from "@/lib/posts";
+
+export const dynamic = "force-dynamic";
 
 export default async function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
+  const data = await getPublicProfileData(username);
+
+  if (!data) {
+    notFound();
+  }
 
   return (
     <div className="grid gap-4">
@@ -11,11 +20,13 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="grid size-14 place-items-center rounded-[5px] border border-cyan-200/25 bg-cyan-300/10 text-base font-semibold">
-              {username.slice(0, 2).toUpperCase()}
+              {data.profile.initials}
             </div>
             <div>
-              <h1 className="text-base font-semibold">@{username}</h1>
-              <p className="mt-1 text-muted">Public creator profile</p>
+              <h1 className="text-base font-semibold">{data.profile.displayName ?? "Creator"}</h1>
+              <p className="mt-1 text-muted">
+                {data.posts.length} published posts - {data.profile.referralCount} referrals
+              </p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -23,7 +34,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
               <Link2 className="size-4" />
               Referral
             </button>
-            <ReferralShareButton referralCode={`BE${username.toUpperCase().slice(0, 8)}`} />
+            <ReferralShareButton referralCode={data.profile.referralCode} />
           </div>
         </div>
       </section>
@@ -33,7 +44,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           <h2 className="text-base font-semibold">Published posts</h2>
           <p className="text-muted">Safe public grid</p>
         </div>
-        <PostGrid />
+        <PostGrid posts={data.posts} />
       </section>
     </div>
   );

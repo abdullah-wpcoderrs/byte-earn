@@ -1,12 +1,15 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { profiles, signupPayments } from "@/db/schema";
+import { writeAuditLog } from "@/lib/audit";
 import { SIGNUP_FEE_KOBO } from "@/lib/config/pricing";
 import { getDb } from "@/lib/db";
 import { initializePaystackTransaction } from "@/lib/paystack";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
+  const clientIp = getClientIp(request.headers);
   const supabase = await createClient();
   const {
     data: { user },
@@ -14,6 +17,11 @@ export async function POST(request: Request) {
 
   if (!user?.email) {
     return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  const limit = checkRateLimit(`paystack:init:${clientIp}:${user.id}`, 4, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.redirect(new URL("/activate?payment_error=rate_limited", request.url));
   }
 
   const db = getDb();
@@ -44,12 +52,20 @@ export async function POST(request: Request) {
     reference,
   });
 
-  await db.insert(signupPayments).values({
+  const [payment] = await db.insert(signupPayments).values({
     accessCode: transaction.access_code,
     amountKobo,
     authorizationUrl: transaction.authorization_url,
     profileId: user.id,
     reference,
+  }).returning({ id: signupPayments.id });
+
+  await writeAuditLog({
+    action: "payment.initialized",
+    actorId: user.id,
+    entityId: payment?.id,
+    entityType: "signup_payment",
+    metadata: { amountKobo, reference },
   });
 
   return NextResponse.redirect(transaction.authorization_url!);

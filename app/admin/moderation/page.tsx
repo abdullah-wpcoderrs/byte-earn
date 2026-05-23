@@ -71,6 +71,7 @@ export default async function AdminModerationPage({ searchParams }: PageProps) {
           </article>
         ))}
       </section>
+      {posts.length === 0 ? <div className="glass p-6 text-center text-muted">No posts match this moderation filter.</div> : null}
     </div>
   );
 }

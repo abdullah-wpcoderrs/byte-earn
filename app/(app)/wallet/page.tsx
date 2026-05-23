@@ -1,12 +1,15 @@
+import { redirect } from "next/navigation";
 import { WalletDashboard } from "@/components/wallet/wallet-dashboard";
-import type { WalletBreakdown } from "@/lib/wallet";
+import { getWalletPageData } from "@/lib/wallet-data";
 
-const demoWallet: WalletBreakdown = {
-  referralCredits: 285000,
-  sponsoredCredits: 76000,
-  totalWithdrawnCredits: 168000,
-};
+export const dynamic = "force-dynamic";
 
-export default function WalletPage() {
-  return <WalletDashboard adminSponsoredUnlocked={false} wallet={demoWallet} />;
+export default async function WalletPage() {
+  const data = await getWalletPageData();
+
+  if (!data) {
+    redirect("/");
+  }
+
+  return <WalletDashboard adminSponsoredUnlocked={data.adminSponsoredUnlocked} wallet={data.wallet} />;
 }

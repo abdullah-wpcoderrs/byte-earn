@@ -1,8 +1,12 @@
 import { Upload } from "lucide-react";
 import { FeedCard } from "@/components/feed/feed-card";
-import { feedPosts } from "@/lib/mock-posts";
+import { getFeedPosts } from "@/lib/posts";
 
-export default function FeedPage() {
+export const dynamic = "force-dynamic";
+
+export default async function FeedPage() {
+  const feedPosts = await getFeedPosts();
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(360px,520px)_minmax(240px,1fr)] lg:items-start">
       <section className="glass-strong h-[calc(100svh-112px)] min-h-[620px] overflow-hidden p-2 lg:sticky lg:top-4 lg:h-[calc(100svh-32px)]">
@@ -11,6 +15,11 @@ export default function FeedPage() {
             {feedPosts.map((post) => (
               <FeedCard key={post.id} post={post} />
             ))}
+            {feedPosts.length === 0 ? (
+              <div className="grid min-h-[calc(100svh-112px)] place-items-center rounded-[5px] border border-white/10 bg-white/[0.045] p-6 text-center text-muted md:min-h-[720px]">
+                No published posts yet.
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

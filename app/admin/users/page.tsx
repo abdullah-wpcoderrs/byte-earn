@@ -88,6 +88,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
             </label>
           ))}
         </div>
+        {users.rows.length === 0 ? (
+          <div className="p-6 text-center text-muted">No users match these filters.</div>
+        ) : null}
       </form>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-muted">

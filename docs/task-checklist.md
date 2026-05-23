@@ -53,7 +53,7 @@
 - [x] Link comments, leaderboards, and referrals to public profiles where relevant.
 - [x] Add media-type badges for image, video, and image + audio profile grid items.
 - [x] Optimize profile grids for 3-column mobile and denser desktop layouts.
-- [ ] Add media storage buckets and policies.
+- [x] Add media storage buckets and policies.
 
 ## Phase 4: Viral Share and Referral Loops
 
@@ -113,17 +113,17 @@
 
 ## Phase 8: Hardening and Launch
 
-- [ ] Add audit logging for admin and wallet mutations.
-- [ ] Add RLS policies for all exposed public tables.
-- [ ] Add storage policies for media assets.
-- [ ] Add rate limiting for payments, sharing, comments, and admin actions.
-- [ ] Add empty, loading, and error states.
-- [ ] Add accessibility pass.
-- [ ] Add mobile viewport QA.
-- [ ] Add desktop sidebar layout QA.
-- [ ] Add mobile bottom navigation QA.
-- [ ] Add profile grid responsive QA.
-- [ ] Test breakpoints for small mobile, large mobile, tablet, laptop, desktop, and wide desktop.
-- [ ] Add build and lint gates.
-- [ ] Add payment, wallet, referral, and moderation tests.
-- [ ] Add production deployment checklist.
+- [x] Add audit logging for admin and wallet mutations.
+- [x] Add RLS policies for all exposed public tables.
+- [x] Add storage policies for media assets.
+- [x] Add rate limiting for payments, sharing, comments, and admin actions.
+- [x] Add empty, loading, and error states.
+- [x] Add accessibility pass.
+- [ ] Add mobile viewport QA. (QA checklist added; browser/device verification still required)
+- [ ] Add desktop sidebar layout QA. (QA checklist added; browser/device verification still required)
+- [ ] Add mobile bottom navigation QA. (QA checklist added; browser/device verification still required)
+- [ ] Add profile grid responsive QA. (QA checklist added; browser/device verification still required)
+- [ ] Test breakpoints for small mobile, large mobile, tablet, laptop, desktop, and wide desktop. (QA checklist added; browser/device verification still required)
+- [x] Add build and lint gates.
+- [x] Add payment, wallet, referral, and moderation tests.
+- [x] Add production deployment checklist.

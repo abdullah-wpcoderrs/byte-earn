@@ -1,10 +1,17 @@
 import { ArrowLeft } from "lucide-react";
+import { notFound } from "next/navigation";
 import { FeedCard } from "@/components/feed/feed-card";
-import { feedPosts, profileGridPosts } from "@/lib/mock-posts";
+import { getPostById } from "@/lib/posts";
+
+export const dynamic = "force-dynamic";
 
 export default async function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const post = [...feedPosts, ...profileGridPosts].find((item) => item.id === id) ?? feedPosts[0];
+  const post = await getPostById(id);
+
+  if (!post) {
+    notFound();
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(360px,520px)_1fr]">
@@ -17,7 +24,7 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
           Back to feed
         </a>
         <h1 className="text-base font-semibold">Post details</h1>
-        <p className="mt-2 leading-5 text-muted">This page will host direct post links, comment deep-links, and moderation previews.</p>
+        <p className="mt-2 leading-5 text-muted">Direct post links now read published post and engagement data from the database.</p>
       </aside>
     </div>
   );

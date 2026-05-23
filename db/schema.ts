@@ -32,6 +32,7 @@ export const withdrawalStatus = pgEnum("withdrawal_status", [
   "rejected",
 ]);
 export const notificationAudience = pgEnum("notification_audience", ["all", "active", "suspended"]);
+export const auditActorType = pgEnum("audit_actor_type", ["user", "admin", "system"]);
 export const signupPaymentStatus = pgEnum("signup_payment_status", [
   "initialized",
   "success",
@@ -216,5 +217,16 @@ export const badges = pgTable("badges", {
   color: text("color").notNull().default("#5fd7ff"),
   description: text("description").notNull(),
   createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorId: uuid("actor_id").references(() => profiles.id),
+  actorType: auditActorType("actor_type").notNull().default("user"),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id"),
+  metadata: text("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

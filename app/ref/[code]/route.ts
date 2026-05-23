@@ -2,11 +2,13 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { profiles, referralVisits } from "@/db/schema";
 import { getDb } from "@/lib/db";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const normalizedCode = code.trim().toUpperCase();
   const response = NextResponse.redirect(new URL(`/?ref=${encodeURIComponent(normalizedCode)}`, request.url));
+  const clientIp = getClientIp(request.headers);
 
   response.cookies.set("byte_earn_ref", normalizedCode, {
     httpOnly: true,
@@ -17,6 +19,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   });
 
   try {
+    const limit = checkRateLimit(`referral:${clientIp}:${normalizedCode}`, 30, 60 * 60 * 1000);
+    if (!limit.allowed) {
+      return response;
+    }
+
     const db = getDb();
     const referrer = await db.query.profiles.findFirst({
       where: eq(profiles.referralCode, normalizedCode),

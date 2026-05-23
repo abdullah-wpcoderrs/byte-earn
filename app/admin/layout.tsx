@@ -53,7 +53,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         </div>
         <nav className="mt-3 grid grid-cols-5 gap-1">
           {adminNav.map((item) => (
-            <a className="flex min-h-11 items-center justify-center rounded-[5px] bg-white/[0.055] text-slate-300" href={item.href} key={item.href} title={item.label}>
+            <a
+              aria-label={item.label}
+              className="flex min-h-11 items-center justify-center rounded-[5px] bg-white/[0.055] text-slate-300"
+              href={item.href}
+              key={item.href}
+              title={item.label}
+            >
               <item.icon className="size-4" />
             </a>
           ))}

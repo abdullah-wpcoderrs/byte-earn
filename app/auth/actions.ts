@@ -2,10 +2,12 @@
 
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { profiles, referralAttributions } from "@/db/schema";
 import { isPaystackActivationEnabled } from "@/lib/config/payments";
 import { getDb } from "@/lib/db";
+import { assertRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createUniqueReferralCode } from "@/lib/referrals";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,6 +25,9 @@ export async function signUpAction(formData: FormData) {
   const displayName = readRequiredString(formData, "displayName");
   const email = readRequiredString(formData, "email");
   const password = readRequiredString(formData, "password");
+  const requestHeaders = await headers();
+  const clientIp = getClientIp(requestHeaders);
+  assertRateLimit(`auth:signup:${clientIp}:${email.toLowerCase()}`, 5, 10 * 60 * 1000);
   const referralCodeInput = formData.get("referralCode");
   const cookieReferralCode = (await cookies()).get("byte_earn_ref")?.value;
   const providedReferralCode =
@@ -83,12 +88,15 @@ export async function signUpAction(formData: FormData) {
       .onConflictDoNothing();
   }
 
-  redirect(isPaystackActivationEnabled() ? "/activate" : "/onboarding");
+  redirect(isPaystackActivationEnabled() ? "/activate?updated=account_created" : "/onboarding?updated=account_created");
 }
 
 export async function signInAction(formData: FormData) {
   const email = readRequiredString(formData, "email");
   const password = readRequiredString(formData, "password");
+  const requestHeaders = await headers();
+  const clientIp = getClientIp(requestHeaders);
+  assertRateLimit(`auth:signin:${clientIp}:${email.toLowerCase()}`, 8, 10 * 60 * 1000);
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -113,5 +121,5 @@ export async function signInAction(formData: FormData) {
     redirect("/onboarding");
   }
 
-  redirect("/feed");
+  redirect("/feed?updated=login");
 }

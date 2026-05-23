@@ -1,4 +1,5 @@
 import { ImageIcon, Music2, UploadCloud, Video } from "lucide-react";
+import { createPostAction } from "./actions";
 
 const uploadTypes = [
   { title: "Image + caption", description: "Static post with text caption.", icon: ImageIcon },
@@ -24,7 +25,7 @@ export default function UploadPage() {
         </div>
       </aside>
 
-      <form className="glass-strong grid gap-3 p-4">
+      <form action={createPostAction} className="glass-strong grid gap-3 p-4">
         <div className="mb-2 flex items-center gap-2 text-cyan-100">
           <UploadCloud className="size-4" />
           <span className="font-semibold">Media details</span>
@@ -32,30 +33,30 @@ export default function UploadPage() {
 
         <label className="grid gap-2">
           <span className="font-medium text-slate-200">Post type</span>
-          <select className="min-h-11 rounded-[5px] border border-white/10 bg-[#101f37] px-3 text-white outline-none focus:border-cyan-200/55">
-            <option>Image and text caption</option>
-            <option>Video and text caption</option>
-            <option>Image with MP3 soundtrack</option>
+          <select className="min-h-11 rounded-[5px] border border-white/10 bg-[#101f37] px-3 text-white outline-none focus:border-cyan-200/55" name="postType">
+            <option value="image_text">Image and text caption</option>
+            <option value="video_text">Video and text caption</option>
+            <option value="image_audio">Image with MP3 soundtrack</option>
           </select>
         </label>
 
         <label className="grid gap-2">
           <span className="font-medium text-slate-200">Media file</span>
-          <input className="min-h-11 rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-2 text-slate-300 file:mr-3 file:rounded-[5px] file:border-0 file:bg-cyan-300 file:px-3 file:py-2 file:font-semibold file:text-slate-950" type="file" />
+          <input className="min-h-11 rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-2 text-slate-300 file:mr-3 file:rounded-[5px] file:border-0 file:bg-cyan-300 file:px-3 file:py-2 file:font-semibold file:text-slate-950" name="mediaFile" required type="file" />
         </label>
 
         <label className="grid gap-2">
           <span className="font-medium text-slate-200">Audio file</span>
-          <input className="min-h-11 rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-2 text-slate-300 file:mr-3 file:rounded-[5px] file:border-0 file:bg-white/10 file:px-3 file:py-2 file:font-semibold file:text-white" type="file" />
+          <input className="min-h-11 rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-2 text-slate-300 file:mr-3 file:rounded-[5px] file:border-0 file:bg-white/10 file:px-3 file:py-2 file:font-semibold file:text-white" name="audioFile" type="file" />
         </label>
 
         <label className="grid gap-2">
           <span className="font-medium text-slate-200">Caption</span>
-          <textarea className="min-h-28 resize-none rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" placeholder="Write a short caption..." />
+          <textarea className="min-h-28 resize-none rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" maxLength={600} name="caption" placeholder="Write a short caption..." required />
         </label>
 
-        <button className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200" type="button">
-          Save upload draft
+        <button className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200" type="submit">
+          Submit post
         </button>
       </form>
     </div>

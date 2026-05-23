@@ -68,6 +68,7 @@ export default async function AdminLeaderboardPage() {
             </div>
           ))}
         </div>
+        {rows.length === 0 ? <div className="p-6 text-center text-muted">No eligible creators yet.</div> : null}
       </section>
     </div>
   );

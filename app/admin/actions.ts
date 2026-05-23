@@ -13,8 +13,10 @@ import {
   profiles,
   withdrawals,
 } from "@/db/schema";
+import { writeAuditLog } from "@/lib/audit";
 import { requireAdmin } from "@/lib/admin";
 import { getDb } from "@/lib/db";
+import { assertRateLimit } from "@/lib/rate-limit";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -36,6 +38,7 @@ function selectedIds(formData: FormData, key: string) {
 
 export async function bulkUserAction(formData: FormData) {
   const admin = await requireAdmin();
+  assertRateLimit(`admin:bulk-users:${admin.id}`, 20, 10 * 60 * 1000);
   const action = textValue(formData, "bulkAction");
   const ids = selectedIds(formData, "userIds").filter((id) => id !== admin.id);
   const credits = Math.abs(intValue(formData, "credits"));
@@ -121,11 +124,19 @@ export async function bulkUserAction(formData: FormData) {
   }
 
   revalidatePath("/admin/users");
+  await writeAuditLog({
+    action: `admin.users.${action}`,
+    actorId: admin.id,
+    actorType: "admin",
+    entityType: "profiles",
+    metadata: { credits, count: ids.length, reason },
+  });
   redirect("/admin/users?updated=users");
 }
 
 export async function moderatePostAction(formData: FormData) {
   const admin = await requireAdmin();
+  assertRateLimit(`admin:moderation:${admin.id}`, 60, 10 * 60 * 1000);
   const postId = textValue(formData, "postId");
   const action = textValue(formData, "moderationAction");
   const message = textValue(formData, "message", "Your post was rejected by moderation.").slice(0, 240);
@@ -165,11 +176,20 @@ export async function moderatePostAction(formData: FormData) {
   }
 
   revalidatePath("/admin/moderation");
+  await writeAuditLog({
+    action: `admin.post.${action}`,
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: postId,
+    entityType: "post",
+    metadata: { message: action === "reject" ? message : undefined },
+  });
   redirect("/admin/moderation?updated=moderation");
 }
 
 export async function reviewWithdrawalAction(formData: FormData) {
   const admin = await requireAdmin();
+  assertRateLimit(`admin:withdrawals:${admin.id}`, 40, 10 * 60 * 1000);
   const withdrawalId = textValue(formData, "withdrawalId");
   const action = textValue(formData, "reviewAction");
   const note = textValue(formData, "reviewNote").slice(0, 240);
@@ -258,11 +278,20 @@ export async function reviewWithdrawalAction(formData: FormData) {
 
   revalidatePath("/admin/withdrawals");
   revalidatePath("/admin");
+  await writeAuditLog({
+    action: `admin.withdrawal.${nextStatus}`,
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: withdrawalId,
+    entityType: "withdrawal",
+    metadata: { previousStatus: request.status, reviewNote: note },
+  });
   redirect("/admin/withdrawals?updated=withdrawal");
 }
 
 export async function updateLeaderboardSettingsAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:leaderboard:${admin.id}`, 20, 10 * 60 * 1000);
   const settingsId = textValue(formData, "settingsId");
   const values = {
     leaderboardStrictMode: formData.get("leaderboardStrictMode") === "on",
@@ -280,10 +309,20 @@ export async function updateLeaderboardSettingsAction(formData: FormData) {
   }
 
   revalidatePath("/admin/leaderboard");
+  await writeAuditLog({
+    action: "admin.leaderboard.updated",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: uuidPattern.test(settingsId) ? settingsId : null,
+    entityType: "platform_settings",
+    metadata: values,
+  });
+  redirect("/admin/leaderboard?updated=leaderboard");
 }
 
 export async function updatePlatformSettingsAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:platform:${admin.id}`, 20, 10 * 60 * 1000);
   const settingsId = textValue(formData, "settingsId");
   const values = {
     dailyWatchLimitSeconds: Math.max(60, intValue(formData, "dailyWatchLimitSeconds")),
@@ -300,10 +339,20 @@ export async function updatePlatformSettingsAction(formData: FormData) {
   }
 
   revalidatePath("/admin/platform");
+  await writeAuditLog({
+    action: "admin.platform.updated",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: uuidPattern.test(settingsId) ? settingsId : null,
+    entityType: "platform_settings",
+    metadata: values,
+  });
+  redirect("/admin/platform?updated=platform");
 }
 
 export async function createNotificationAction(formData: FormData) {
   const admin = await requireAdmin();
+  assertRateLimit(`admin:notifications:${admin.id}`, 30, 60 * 60 * 1000);
   const title = textValue(formData, "title").slice(0, 80);
   const body = textValue(formData, "body").slice(0, 600);
   const audience = textValue(formData, "audience") as "all" | "active" | "suspended";
@@ -312,12 +361,22 @@ export async function createNotificationAction(formData: FormData) {
     redirect("/admin/platform?error=invalid_notification");
   }
 
-  await getDb().insert(platformNotifications).values({ audience, body, createdBy: admin.id, title });
+  const [notification] = await getDb().insert(platformNotifications).values({ audience, body, createdBy: admin.id, title }).returning({ id: platformNotifications.id });
   revalidatePath("/admin/platform");
+  await writeAuditLog({
+    action: "admin.notification.created",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: notification?.id,
+    entityType: "platform_notification",
+    metadata: { audience, title },
+  });
+  redirect("/admin/platform?updated=notification");
 }
 
 export async function createEmailBlastAction(formData: FormData) {
   const admin = await requireAdmin();
+  assertRateLimit(`admin:email-blasts:${admin.id}`, 10, 60 * 60 * 1000);
   const subject = textValue(formData, "subject").slice(0, 120);
   const htmlBody = textValue(formData, "htmlBody").slice(0, 5000);
   const audience = textValue(formData, "audience") as "all" | "active" | "suspended";
@@ -326,12 +385,22 @@ export async function createEmailBlastAction(formData: FormData) {
     redirect("/admin/platform?error=invalid_email");
   }
 
-  await getDb().insert(emailBlasts).values({ audience, createdBy: admin.id, htmlBody, subject });
+  const [blast] = await getDb().insert(emailBlasts).values({ audience, createdBy: admin.id, htmlBody, subject }).returning({ id: emailBlasts.id });
   revalidatePath("/admin/platform");
+  await writeAuditLog({
+    action: "admin.email_blast.created",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: blast?.id,
+    entityType: "email_blast",
+    metadata: { audience, subject },
+  });
+  redirect("/admin/platform?updated=email_blast");
 }
 
 export async function createBadgeAction(formData: FormData) {
   const admin = await requireAdmin();
+  assertRateLimit(`admin:badges:${admin.id}`, 30, 60 * 60 * 1000);
   const name = textValue(formData, "name").slice(0, 48);
   const color = textValue(formData, "color", "#5fd7ff").slice(0, 24);
   const description = textValue(formData, "description").slice(0, 180);
@@ -340,6 +409,15 @@ export async function createBadgeAction(formData: FormData) {
     redirect("/admin/platform?error=invalid_badge");
   }
 
-  await getDb().insert(badges).values({ color, createdBy: admin.id, description, name });
+  const [badge] = await getDb().insert(badges).values({ color, createdBy: admin.id, description, name }).returning({ id: badges.id });
   revalidatePath("/admin/platform");
+  await writeAuditLog({
+    action: "admin.badge.created",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: badge?.id,
+    entityType: "badge",
+    metadata: { color, name },
+  });
+  redirect("/admin/platform?updated=badge");
 }

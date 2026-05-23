@@ -1,25 +1,19 @@
-import type { LucideIcon } from "lucide-react";
+import { Clapperboard, ImageIcon, Music2 } from "lucide-react";
 import { PostActions } from "./post-actions";
+import type { FeedPost } from "@/lib/posts";
 
 type FeedCardProps = {
-  post: {
-    author: string;
-    avatar: string;
-    badge: string;
-    bookmarks: string;
-    caption: string;
-    comments: Array<[string, string]>;
-    handle: string;
-    icon: LucideIcon;
-    id: string;
-    likes: string;
-    mediaUrl: string;
-    type: string;
-  };
+  post: FeedPost;
+};
+
+const postTypeMeta = {
+  image_audio: { badge: "Image + MP3", icon: Music2 },
+  image_text: { badge: "Image", icon: ImageIcon },
+  video_text: { badge: "Video", icon: Clapperboard },
 };
 
 export function FeedCard({ post }: FeedCardProps) {
-  const Icon = post.icon;
+  const { badge, icon: Icon } = postTypeMeta[post.type];
   const isAudioPost = post.type === "image_audio";
 
   return (
@@ -28,11 +22,19 @@ export function FeedCard({ post }: FeedCardProps) {
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08),rgba(2,6,23,0.38)_44%,rgba(2,6,23,0.92))]" />
       <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-[5px] border border-white/15 bg-black/36 px-3 py-2 text-cyan-100 backdrop-blur">
         <Icon className="size-4" />
-        {post.badge}
+        {badge}
       </div>
 
       <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2">
-        <PostActions bookmarks={post.bookmarks} comments={post.comments} likes={post.likes} />
+        <PostActions
+          bookmarkedByViewer={post.bookmarkedByViewer}
+          bookmarksCount={post.bookmarksCount}
+          comments={post.comments}
+          commentsCount={post.commentsCount}
+          likedByViewer={post.likedByViewer}
+          likesCount={post.likesCount}
+          postId={post.id}
+        />
       </div>
 
       <div className="relative z-10 flex items-end justify-between gap-4 p-4 pr-16 sm:p-5 sm:pr-20">

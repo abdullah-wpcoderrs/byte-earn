@@ -72,6 +72,17 @@ export default async function OnboardingPage() {
           </div>
 
           <label className="grid gap-2">
+            <span className="font-medium text-slate-200">Email address</span>
+            <input
+              className="min-h-11 cursor-not-allowed border border-white/10 bg-white/[0.035] px-3 text-slate-400 outline-none"
+              disabled
+              readOnly
+              type="email"
+              value={user.email ?? ""}
+            />
+          </label>
+
+          <label className="grid gap-2">
             <span className="font-medium text-slate-200">Display name</span>
             <input
               className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"

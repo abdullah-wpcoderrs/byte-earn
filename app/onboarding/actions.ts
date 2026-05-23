@@ -43,5 +43,5 @@ export async function completeOnboardingAction(formData: FormData) {
     redirect(`/onboarding?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect("/feed");
+  redirect("/feed?onboarding=saved");
 }

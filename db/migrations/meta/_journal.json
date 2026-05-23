@@ -50,6 +50,20 @@
       "when": 1779525338407,
       "tag": "0006_withdrawal_review_states",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779525338408,
+      "tag": "0007_phase8_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779525338409,
+      "tag": "0008_post_engagement_integrity",
+      "breakpoints": true
     }
   ]
 }

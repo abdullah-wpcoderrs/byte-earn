@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Clapperboard,
   Home,
@@ -8,12 +10,18 @@ import {
   UserRound,
   Wallet,
 } from "lucide-react";
+import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
 
 type NavItem = {
+  adminOnly?: boolean;
   href: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   label: string;
+};
+
+type NavigationProps = {
+  isAdmin?: boolean;
 };
 
 export const appNavigation: NavItem[] = [
@@ -23,8 +31,16 @@ export const appNavigation: NavItem[] = [
   { label: "Leaders", href: "/leaderboard", icon: Trophy },
   { label: "Upload", href: "/upload", icon: SquarePlus },
   { label: "Profile", href: "/profile", icon: UserRound },
-  { label: "Admin", href: "/admin", icon: LayoutDashboard },
+  { label: "Admin", href: "/admin", icon: LayoutDashboard, adminOnly: true },
 ];
+
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function visibleNavigation(isAdmin?: boolean) {
+  return appNavigation.filter((item) => !item.adminOnly || isAdmin);
+}
 
 export function AppBrand() {
   return (
@@ -40,46 +56,61 @@ export function AppBrand() {
   );
 }
 
-export function DesktopSidebar() {
+export function DesktopSidebar({ isAdmin }: NavigationProps) {
+  const pathname = usePathname();
+
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] border-r border-white/10 bg-[#08101d]/88 p-4 backdrop-blur-xl lg:flex lg:flex-col">
       <AppBrand />
-      <nav className="mt-8 flex flex-1 flex-col gap-2">
-        {appNavigation.map((item, index) => (
-          <a
-            className={`flex items-center gap-3 rounded-[5px] px-3 py-3 font-medium transition ${
-              index === 0
-                ? "border border-cyan-200/20 bg-cyan-300/12 text-cyan-100"
-                : "text-slate-300 hover:bg-white/8 hover:text-white"
-            }`}
-            href={item.href}
-            key={item.label}
-          >
-            <item.icon className="size-5" />
-            {item.label}
-          </a>
-        ))}
+      <nav className="mt-8 flex flex-1 flex-col gap-2" aria-label="Primary navigation">
+        {visibleNavigation(isAdmin).map((item) => {
+          const active = isActive(pathname, item.href);
+
+          return (
+            <a
+              aria-current={active ? "page" : undefined}
+              className={`flex items-center gap-3 rounded-[5px] px-3 py-3 font-medium transition ${
+                active
+                  ? "border border-cyan-200/20 bg-cyan-300/12 text-cyan-100"
+                  : "text-slate-300 hover:bg-white/8 hover:text-white"
+              }`}
+              href={item.href}
+              key={item.label}
+            >
+              <item.icon className="size-5" />
+              {item.label}
+            </a>
+          );
+        })}
       </nav>
     </aside>
   );
 }
 
-export function MobileBottomNav() {
+export function MobileBottomNav({ isAdmin }: NavigationProps) {
+  const pathname = usePathname();
+  const items = visibleNavigation(isAdmin).filter((item) => item.href !== "/admin").slice(0, 5);
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08101d]/92 px-2 pb-3 pt-2 backdrop-blur-xl lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08101d]/92 px-2 pb-3 pt-2 backdrop-blur-xl lg:hidden" aria-label="Primary navigation">
       <div className="grid grid-cols-5 gap-1">
-        {appNavigation.slice(0, 5).map((item, index) => (
-          <a
-            className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-[5px] font-medium ${
-              index === 0 ? "bg-cyan-300/12 text-cyan-100" : "text-slate-400"
-            }`}
-            href={item.href}
-            key={item.label}
-          >
-            <item.icon className="size-5" />
-            {item.label}
-          </a>
-        ))}
+        {items.map((item) => {
+          const active = isActive(pathname, item.href);
+
+          return (
+            <a
+              aria-current={active ? "page" : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-[5px] font-medium ${
+                active ? "bg-cyan-300/12 text-cyan-100" : "text-slate-400"
+              }`}
+              href={item.href}
+              key={item.label}
+            >
+              <item.icon className="size-5" />
+              {item.label}
+            </a>
+          );
+        })}
       </div>
     </nav>
   );

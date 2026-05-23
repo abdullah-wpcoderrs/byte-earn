@@ -3,14 +3,15 @@ import { DesktopSidebar, MobileBottomNav } from "./app-navigation";
 
 type AppShellProps = {
   children: ReactNode;
+  isAdmin?: boolean;
 };
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, isAdmin }: AppShellProps) {
   return (
     <div className="min-h-screen text-[11px] text-white lg:pl-[264px]">
-      <DesktopSidebar />
+      <DesktopSidebar isAdmin={isAdmin} />
       <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8">{children}</main>
-      <MobileBottomNav />
+      <MobileBottomNav isAdmin={isAdmin} />
     </div>
   );
 }
