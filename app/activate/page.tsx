@@ -1,9 +1,6 @@
 import { CreditCard, ShieldCheck, Sparkles } from "lucide-react";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { profiles } from "@/db/schema";
 import { signupFeeNaira } from "@/lib/config/pricing";
-import { getDb } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +15,7 @@ export default async function ActivatePage() {
     redirect("/");
   }
 
-  const profile = await getDb().query.profiles.findFirst({
-    where: eq(profiles.id, user.id),
-  });
+  const { data: profile } = await supabase.from("profiles").select("status").eq("id", user.id).maybeSingle();
 
   if (!profile) {
     redirect("/");

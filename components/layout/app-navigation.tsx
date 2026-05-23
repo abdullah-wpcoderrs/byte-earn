@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Sparkles,
   SquarePlus,
+  Trophy,
   UserRound,
   Wallet,
 } from "lucide-react";
@@ -19,6 +20,7 @@ export const appNavigation: NavItem[] = [
   { label: "Feed", href: "/feed", icon: Home },
   { label: "Tasks", href: "/tasks", icon: Clapperboard },
   { label: "Wallet", href: "/wallet", icon: Wallet },
+  { label: "Leaders", href: "/leaderboard", icon: Trophy },
   { label: "Upload", href: "/upload", icon: SquarePlus },
   { label: "Profile", href: "/profile", icon: UserRound },
   { label: "Admin", href: "/admin", icon: LayoutDashboard },

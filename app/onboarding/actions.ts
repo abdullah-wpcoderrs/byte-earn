@@ -1,9 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { profiles } from "@/db/schema";
-import { getDb } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
 function readRequiredString(formData: FormData, key: string) {
@@ -30,17 +27,21 @@ export async function completeOnboardingAction(formData: FormData) {
     redirect("/");
   }
 
-  await getDb()
-    .update(profiles)
-    .set({
-      accountName,
-      accountNumber,
-      bankName,
-      displayName,
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      account_name: accountName,
+      account_number: accountNumber,
+      bank_name: bankName,
+      display_name: displayName,
       status: "active",
-      updatedAt: new Date(),
+      updated_at: new Date().toISOString(),
     })
-    .where(eq(profiles.id, user.id));
+    .eq("id", user.id);
+
+  if (error) {
+    redirect(`/onboarding?error=${encodeURIComponent(error.message)}`);
+  }
 
   redirect("/feed");
 }

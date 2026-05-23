@@ -8,7 +8,9 @@ export function getDb() {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
-    throw new Error("DATABASE_URL is required to initialize Drizzle.");
+    throw new Error(
+      "DATABASE_URL is required to initialize Drizzle. Use the Supabase Postgres connection string, not NEXT_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL.",
+    );
   }
 
   if (!cachedDb) {

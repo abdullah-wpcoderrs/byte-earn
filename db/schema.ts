@@ -31,6 +31,7 @@ export const withdrawalStatus = pgEnum("withdrawal_status", [
   "paid",
   "rejected",
 ]);
+export const notificationAudience = pgEnum("notification_audience", ["all", "active", "suspended"]);
 export const signupPaymentStatus = pgEnum("signup_payment_status", [
   "initialized",
   "success",
@@ -171,6 +172,9 @@ export const withdrawals = pgTable("withdrawals", {
   bankName: text("bank_name").notNull(),
   accountNumber: text("account_number").notNull(),
   accountName: text("account_name").notNull(),
+  reviewedBy: uuid("reviewed_by").references(() => profiles.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: text("review_note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -186,4 +190,31 @@ export const platformSettings = pgTable("platform_settings", {
   leaderboardUsesBookmarks: boolean("leaderboard_uses_bookmarks").notNull().default(false),
   leaderboardUsesWatchTime: boolean("leaderboard_uses_watch_time").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const platformNotifications = pgTable("platform_notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  audience: notificationAudience("audience").notNull().default("all"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const emailBlasts = pgTable("email_blasts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  subject: text("subject").notNull(),
+  htmlBody: text("html_body").notNull(),
+  audience: notificationAudience("audience").notNull().default("all"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const badges = pgTable("badges", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("#5fd7ff"),
+  description: text("description").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -99,12 +99,13 @@ export async function signInAction(formData: FormData) {
     redirect(`/?auth_error=${encodeURIComponent(error?.message ?? "Unable to sign in.")}`);
   }
 
-  const profile = await getDb().query.profiles.findFirst({
-    where: eq(profiles.id, data.user.id),
-    columns: { status: true },
-  });
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("status")
+    .eq("id", data.user.id)
+    .maybeSingle();
 
-  if (!profile || profile.status === "pending_payment") {
+  if (profileError || !profile || profile.status === "pending_payment") {
     redirect("/activate");
   }
 

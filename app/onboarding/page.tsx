@@ -1,9 +1,6 @@
 import { Banknote, Link2, ShieldCheck, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { completeOnboardingAction } from "./actions";
-import { profiles } from "@/db/schema";
-import { getDb } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +15,11 @@ export default async function OnboardingPage() {
     redirect("/");
   }
 
-  const profile = await getDb().query.profiles.findFirst({
-    where: eq(profiles.id, user.id),
-  });
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("status, referral_code, display_name, bank_name, account_number, account_name")
+    .eq("id", user.id)
+    .maybeSingle();
 
   if (!profile || profile.status === "pending_payment") {
     redirect("/activate");
@@ -30,7 +29,7 @@ export default async function OnboardingPage() {
     redirect("/feed");
   }
 
-  const referralUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://appdomain.com"}/ref=${profile.referralCode}`;
+  const referralUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://appdomain.com"}/ref/${profile.referral_code}`;
 
   return (
     <main className="grid min-h-screen place-items-center px-4 py-8 text-[11px] text-white">
@@ -76,7 +75,7 @@ export default async function OnboardingPage() {
             <span className="font-medium text-slate-200">Display name</span>
             <input
               className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
-              defaultValue={profile.displayName ?? ""}
+              defaultValue={profile.display_name ?? ""}
               name="displayName"
               placeholder="Amina Kareem"
               type="text"
@@ -87,7 +86,7 @@ export default async function OnboardingPage() {
             <span className="font-medium text-slate-200">Bank name</span>
             <input
               className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
-              defaultValue={profile.bankName ?? ""}
+              defaultValue={profile.bank_name ?? ""}
               name="bankName"
               placeholder="Access Bank"
               type="text"
@@ -98,7 +97,7 @@ export default async function OnboardingPage() {
             <span className="font-medium text-slate-200">Account number</span>
             <input
               className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
-              defaultValue={profile.accountNumber ?? ""}
+              defaultValue={profile.account_number ?? ""}
               name="accountNumber"
               placeholder="0123456789"
               type="text"
@@ -109,7 +108,7 @@ export default async function OnboardingPage() {
             <span className="font-medium text-slate-200">Account name</span>
             <input
               className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
-              defaultValue={profile.accountName ?? ""}
+              defaultValue={profile.account_name ?? ""}
               name="accountName"
               placeholder="Amina Kareem"
               type="text"

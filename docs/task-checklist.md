@@ -84,32 +84,32 @@
 - [x] Implement third Saturday fallback unlock.
 - [x] Add withdrawal request modal.
 - [x] Add withdrawal server action and ledger entries.
-- [ ] Add admin withdrawal review states.
+- [x] Add admin withdrawal review states.
 
 ## Phase 7: Admin Management Platform
 
-- [ ] Build paginated user directory.
-- [ ] Build the admin route in a protected /admin and let it have its own auth and role auth permission verification before authenticating.
-- [ ] Add this user as admin and run the migration "abdullahajibowu0@gmail.com" Password: "Welcome+13"
-- [ ] Add earning range filters.
-- [ ] Add percentile rank filters from referral counts.
-- [ ] Add row checkboxes and bulk action menu.
-- [ ] Implement bulk crediting.
-- [ ] Implement bulk removing.
-- [ ] Implement bulk suspending.
-- [ ] Implement bulk deleting.
-- [ ] Implement bulk point deduction.
-- [ ] Build moderation hub.
-- [ ] Add global post approval toggle.
-- [ ] Add publish/delete moderation actions.
-- [ ] Notify authors when posts are rejected.
-- [ ] Build leaderboard criteria checklist.
-- [ ] Add strict and flexible leaderboard modes.
-- [ ] Reconfigure user and admin leaderboard UI from active mode.
-- [ ] Add platform notification tools.
-- [ ] Add HTML email blast module.
-- [ ] Add custom badge creation tools.
-- [ ] Add under-construction global switch.
+- [x] Build paginated user directory.
+- [x] Build the admin route in a protected /admin and let it have its own auth and role auth permission verification before authenticating.
+- [ ] Add this user as admin and run the migration "abdullahajibowu0@gmail.com" Password: "Welcome+13" (migration added; blocked locally because DATABASE_URL is not configured)
+- [x] Add earning range filters.
+- [x] Add percentile rank filters from referral counts.
+- [x] Add row checkboxes and bulk action menu.
+- [x] Implement bulk crediting.
+- [x] Implement bulk removing.
+- [x] Implement bulk suspending.
+- [x] Implement bulk deleting.
+- [x] Implement bulk point deduction.
+- [x] Build moderation hub.
+- [x] Add global post approval toggle.
+- [x] Add publish/delete moderation actions.
+- [x] Notify authors when posts are rejected.
+- [x] Build leaderboard criteria checklist.
+- [x] Add strict and flexible leaderboard modes.
+- [x] Reconfigure user and admin leaderboard UI from active mode.
+- [x] Add platform notification tools.
+- [x] Add HTML email blast module.
+- [x] Add custom badge creation tools.
+- [x] Add under-construction global switch.
 
 ## Phase 8: Hardening and Launch
 

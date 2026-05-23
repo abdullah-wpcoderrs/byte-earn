@@ -1,12 +1,26 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+function getSupabaseUrl() {
+  return process.env.NEXT_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+}
+
+function getSupabasePublishableKey() {
+  return process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+}
+
 export async function createClient() {
   const cookieStore = await cookies();
+  const supabaseUrl = getSupabaseUrl();
+  const supabasePublishableKey = getSupabasePublishableKey();
+
+  if (!supabaseUrl || !supabasePublishableKey) {
+    throw new Error("Supabase URL and publishable key are required.");
+  }
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    supabaseUrl,
+    supabasePublishableKey,
     {
       cookies: {
         getAll() {
