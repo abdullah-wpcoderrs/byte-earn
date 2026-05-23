@@ -1,0 +1,53 @@
+import type { LucideIcon } from "lucide-react";
+import { PostActions } from "./post-actions";
+
+type FeedCardProps = {
+  post: {
+    author: string;
+    avatar: string;
+    badge: string;
+    bookmarks: string;
+    caption: string;
+    comments: Array<[string, string]>;
+    handle: string;
+    icon: LucideIcon;
+    id: string;
+    likes: string;
+    mediaUrl: string;
+    type: string;
+  };
+};
+
+export function FeedCard({ post }: FeedCardProps) {
+  const Icon = post.icon;
+  const isAudioPost = post.type === "image_audio";
+
+  return (
+    <article className="relative flex min-h-[calc(100svh-112px)] snap-start flex-col justify-end overflow-hidden rounded-[5px] border border-white/10 bg-slate-950 md:min-h-[720px]">
+      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${post.mediaUrl})` }} />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08),rgba(2,6,23,0.38)_44%,rgba(2,6,23,0.92))]" />
+      <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-[5px] border border-white/15 bg-black/36 px-3 py-2 text-cyan-100 backdrop-blur">
+        <Icon className="size-4" />
+        {post.badge}
+      </div>
+
+      <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2">
+        <PostActions bookmarks={post.bookmarks} comments={post.comments} likes={post.likes} />
+      </div>
+
+      <div className="relative z-10 flex items-end justify-between gap-4 p-4 pr-16 sm:p-5 sm:pr-20">
+        <div>
+          <a className="text-base font-semibold text-white hover:text-cyan-100" href={`/u/${post.handle}`}>
+            @{post.handle}
+          </a>
+          <p className="mt-2 max-w-[18rem] leading-5 text-slate-200">{post.caption}</p>
+        </div>
+        {isAudioPost ? (
+          <div className="vinyl-spin grid size-14 shrink-0 place-items-center rounded-full border border-cyan-100/40 bg-[conic-gradient(from_180deg,#020617,#38bdf8,#020617,#e2e8f0,#020617)]">
+            <div className="size-4 rounded-full border border-white/30 bg-slate-950" />
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}

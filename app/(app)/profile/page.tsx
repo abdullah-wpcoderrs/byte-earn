@@ -1,0 +1,44 @@
+import { Link2, SquarePlus } from "lucide-react";
+import { PostGrid } from "@/components/profile/post-grid";
+import { ReferralShareButton } from "@/components/share/referral-share-button";
+
+export default function ProfilePage() {
+  return (
+    <div className="grid gap-4">
+      <section className="glass-strong p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="grid size-14 place-items-center rounded-[5px] border border-cyan-200/25 bg-cyan-300/10 text-base font-semibold">AK</div>
+            <div>
+              <h1 className="text-base font-semibold">@amina.creates</h1>
+              <p className="mt-1 text-muted">38 posts - 214 referrals - 19.2K likes</p>
+            </div>
+          </div>
+          <a className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950" href="/upload">
+            <SquarePlus className="size-4" />
+            New post
+          </a>
+        </div>
+
+        <div className="mt-5 grid gap-2 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="rounded-[5px] border border-white/10 bg-white/[0.045] p-3">
+            <div className="mb-2 flex items-center gap-2 text-cyan-100">
+              <Link2 className="size-4" />
+              <span className="font-semibold">Referral URL</span>
+            </div>
+            <p className="break-all text-slate-300">https://appdomain.com/ref=BEAMINA24</p>
+          </div>
+          <ReferralShareButton className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.065] px-3 font-semibold text-slate-100" label="Copy" />
+        </div>
+      </section>
+
+      <section className="glass p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Posts</h2>
+          <p className="text-muted">All media types</p>
+        </div>
+        <PostGrid />
+      </section>
+    </div>
+  );
+}
