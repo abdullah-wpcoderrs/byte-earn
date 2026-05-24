@@ -90,7 +90,7 @@
 
 - [x] Build paginated user directory.
 - [x] Build the admin route in a protected /admin and let it have its own auth and role auth permission verification before authenticating.
-- [ ] Add this user as admin and run the migration "abdullahajibowu0@gmail.com" Password: "Welcome+13" (migration added; blocked locally because DATABASE_URL is not configured)
+- [ ] Add this user as admin and run the migration "abdullahajibowu0@gmail.com" Password: "Welcome+13" (migration added; blocked locally because Supabase Postgres migration URL is not configured)
 - [x] Add earning range filters.
 - [x] Add percentile rank filters from referral counts.
 - [x] Add row checkboxes and bulk action menu.

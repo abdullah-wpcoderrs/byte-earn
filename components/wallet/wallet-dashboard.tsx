@@ -71,14 +71,14 @@ export function WalletDashboard({ adminSponsoredUnlocked, wallet }: WalletDashbo
             <div className="flex flex-col gap-2 sm:flex-row">
               <label className="relative">
                 <select
-                  className="min-h-10 appearance-none rounded-[5px] border border-white/10 bg-white/[0.065] px-3 pr-9 font-semibold text-slate-100 outline-none"
+                  className="min-h-9 appearance-none rounded-[5px] border border-white/10 bg-white/[0.065] px-2.5 pr-8 font-semibold text-slate-100 outline-none"
                   onChange={(event) => setFiatMode(event.target.value as FiatMode)}
                   value={fiatMode}
                 >
                   <option value="NGN">Naira</option>
                   <option value="USD">USD</option>
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-slate-300" />
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-slate-300" />
               </label>
               <button
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200"
@@ -118,19 +118,19 @@ export function WalletDashboard({ adminSponsoredUnlocked, wallet }: WalletDashbo
         <form action={requestWithdrawalAction} className="grid gap-3">
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Amount to Withdraw</span>
-            <input className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="amountNaira" placeholder="5000" type="number" />
+            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="amountNaira" placeholder="5000" type="number" />
           </label>
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Bank Name</span>
-            <input className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="bankName" placeholder="Access Bank" type="text" />
+            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="bankName" placeholder="Access Bank" type="text" />
           </label>
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Account Number</span>
-            <input className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="accountNumber" placeholder="0123456789" type="text" />
+            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="accountNumber" placeholder="0123456789" type="text" />
           </label>
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Account Name</span>
-            <input className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="accountName" placeholder="Amina Kareem" type="text" />
+            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="accountName" placeholder="Amina Kareem" type="text" />
           </label>
           <button className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200">
             Submit Request

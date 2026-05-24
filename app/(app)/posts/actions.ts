@@ -1,10 +1,7 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { postBookmarks, postComments, postLikes, posts } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { getDb } from "@/lib/db";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,10 +25,16 @@ async function requirePublishedPost(postId: string) {
     throw new Error("Invalid post.");
   }
 
-  const post = await getDb().query.posts.findFirst({
-    columns: { id: true, status: true },
-    where: eq(posts.id, postId),
-  });
+  const supabase = await createClient();
+  const { data: post, error } = await supabase
+    .from("posts")
+    .select("id, status, likes_count, bookmarks_count, comments_count")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   if (!post || post.status !== "published") {
     throw new Error("Post is not available.");
@@ -40,52 +43,59 @@ async function requirePublishedPost(postId: string) {
   return post;
 }
 
+async function updatePostCount(postId: string, column: "bookmarks_count" | "comments_count" | "likes_count", nextValue: number) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("posts")
+    .update({ [column]: Math.max(0, nextValue) })
+    .eq("id", postId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function toggleLikeAction(postId: string) {
   const userId = await requireUserId();
   assertRateLimit(`post:like:${userId}`, 120, 10 * 60 * 1000);
-  await requirePublishedPost(postId);
+  const post = await requirePublishedPost(postId);
+  const supabase = await createClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("post_likes")
+    .select("id")
+    .eq("post_id", postId)
+    .eq("profile_id", userId)
+    .maybeSingle();
 
-  const db = getDb();
-  const existing = await db.query.postLikes.findFirst({
-    columns: { id: true },
-    where: and(eq(postLikes.postId, postId), eq(postLikes.profileId, userId)),
-  });
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
 
   if (existing) {
-    await db.transaction(async (tx) => {
-      await tx.delete(postLikes).where(eq(postLikes.id, existing.id));
-      await tx
-        .update(posts)
-        .set({ likesCount: sql`greatest(${posts.likesCount} - 1, 0)` })
-        .where(eq(posts.id, postId));
-    });
+    const { error } = await supabase.from("post_likes").delete().eq("id", existing.id);
+    if (error) {
+      throw new Error(error.message);
+    }
+    await updatePostCount(postId, "likes_count", post.likes_count - 1);
     revalidatePath("/feed");
     revalidatePath(`/posts/${postId}`);
     return { active: false };
   }
 
-  const [inserted] = await db.transaction(async (tx) => {
-    const created = await tx
-      .insert(postLikes)
-      .values({ postId, profileId: userId })
-      .onConflictDoNothing()
-      .returning({ id: postLikes.id });
-    if (created.length > 0) {
-      await tx.update(posts).set({ likesCount: sql`${posts.likesCount} + 1` }).where(eq(posts.id, postId));
-    }
-    return created;
-  });
+  const { data: inserted, error } = await supabase
+    .from("post_likes")
+    .insert({ post_id: postId, profile_id: userId })
+    .select("id")
+    .maybeSingle();
 
-  if (!inserted) {
-    return { active: true };
+  if (error && error.code !== "23505") {
+    throw new Error(error.message);
   }
 
-  await writeAuditLog({
-    action: "post.like",
-    actorId: userId,
-    entityId: postId,
-    entityType: "post",
-  });
+  if (inserted) {
+    await updatePostCount(postId, "likes_count", post.likes_count + 1);
+    await writeAuditLog({ action: "post.like", actorId: userId, entityId: postId, entityType: "post" });
+  }
 
   revalidatePath("/feed");
   revalidatePath(`/posts/${postId}`);
@@ -95,49 +105,44 @@ export async function toggleLikeAction(postId: string) {
 export async function toggleBookmarkAction(postId: string) {
   const userId = await requireUserId();
   assertRateLimit(`post:bookmark:${userId}`, 120, 10 * 60 * 1000);
-  await requirePublishedPost(postId);
+  const post = await requirePublishedPost(postId);
+  const supabase = await createClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("post_bookmarks")
+    .select("id")
+    .eq("post_id", postId)
+    .eq("profile_id", userId)
+    .maybeSingle();
 
-  const db = getDb();
-  const existing = await db.query.postBookmarks.findFirst({
-    columns: { id: true },
-    where: and(eq(postBookmarks.postId, postId), eq(postBookmarks.profileId, userId)),
-  });
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
 
   if (existing) {
-    await db.transaction(async (tx) => {
-      await tx.delete(postBookmarks).where(eq(postBookmarks.id, existing.id));
-      await tx
-        .update(posts)
-        .set({ bookmarksCount: sql`greatest(${posts.bookmarksCount} - 1, 0)` })
-        .where(eq(posts.id, postId));
-    });
+    const { error } = await supabase.from("post_bookmarks").delete().eq("id", existing.id);
+    if (error) {
+      throw new Error(error.message);
+    }
+    await updatePostCount(postId, "bookmarks_count", post.bookmarks_count - 1);
     revalidatePath("/feed");
     revalidatePath(`/posts/${postId}`);
     return { active: false };
   }
 
-  const [inserted] = await db.transaction(async (tx) => {
-    const created = await tx
-      .insert(postBookmarks)
-      .values({ postId, profileId: userId })
-      .onConflictDoNothing()
-      .returning({ id: postBookmarks.id });
-    if (created.length > 0) {
-      await tx.update(posts).set({ bookmarksCount: sql`${posts.bookmarksCount} + 1` }).where(eq(posts.id, postId));
-    }
-    return created;
-  });
+  const { data: inserted, error } = await supabase
+    .from("post_bookmarks")
+    .insert({ post_id: postId, profile_id: userId })
+    .select("id")
+    .maybeSingle();
 
-  if (!inserted) {
-    return { active: true };
+  if (error && error.code !== "23505") {
+    throw new Error(error.message);
   }
 
-  await writeAuditLog({
-    action: "post.bookmark",
-    actorId: userId,
-    entityId: postId,
-    entityType: "post",
-  });
+  if (inserted) {
+    await updatePostCount(postId, "bookmarks_count", post.bookmarks_count + 1);
+    await writeAuditLog({ action: "post.bookmark", actorId: userId, entityId: postId, entityType: "post" });
+  }
 
   revalidatePath("/feed");
   revalidatePath(`/posts/${postId}`);
@@ -147,23 +152,25 @@ export async function toggleBookmarkAction(postId: string) {
 export async function addCommentAction(postId: string, body: string) {
   const userId = await requireUserId();
   assertRateLimit(`post:comment:${userId}`, 30, 10 * 60 * 1000);
-  await requirePublishedPost(postId);
-
+  const post = await requirePublishedPost(postId);
   const trimmedBody = body.trim();
+
   if (trimmedBody.length < 1 || trimmedBody.length > 500) {
     throw new Error("Comment must be between 1 and 500 characters.");
   }
 
-  const db = getDb();
-  const [comment] = await db.transaction(async (tx) => {
-    const [created] = await tx
-      .insert(postComments)
-      .values({ body: trimmedBody, postId, profileId: userId })
-      .returning({ id: postComments.id });
-    await tx.update(posts).set({ commentsCount: sql`${posts.commentsCount} + 1` }).where(eq(posts.id, postId));
-    return [created];
-  });
+  const supabase = await createClient();
+  const { data: comment, error } = await supabase
+    .from("post_comments")
+    .insert({ body: trimmedBody, post_id: postId, profile_id: userId })
+    .select("id")
+    .maybeSingle();
 
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await updatePostCount(postId, "comments_count", post.comments_count + 1);
   await writeAuditLog({
     action: "post.comment",
     actorId: userId,

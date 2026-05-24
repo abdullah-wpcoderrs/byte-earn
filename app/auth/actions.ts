@@ -1,12 +1,9 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { profiles, referralAttributions } from "@/db/schema";
 import { isPaystackActivationEnabled } from "@/lib/config/payments";
-import { getDb } from "@/lib/db";
 import { assertRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createUniqueReferralCode } from "@/lib/referrals";
 import { createClient } from "@/lib/supabase/server";
@@ -49,43 +46,36 @@ export async function signUpAction(formData: FormData) {
     redirect(`/?auth_error=${encodeURIComponent(error?.message ?? "Unable to create account. Check Supabase Auth settings.")}`);
   }
 
-  const db = getDb();
   const referralCode = await createUniqueReferralCode();
-  const referrer = providedReferralCode
-    ? await db.query.profiles.findFirst({
-        where: eq(profiles.referralCode, providedReferralCode),
-        columns: { id: true },
-      })
-    : null;
+  const { data: referrer, error: referrerError } = providedReferralCode
+    ? await supabase.from("profiles").select("id").eq("referral_code", providedReferralCode).maybeSingle()
+    : { data: null, error: null };
 
-  await db
-    .insert(profiles)
-    .values({
+  if (referrerError) {
+    redirect(`/?auth_error=${encodeURIComponent(referrerError.message)}`);
+  }
+
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .upsert({
       id: data.user.id,
-      displayName,
-      referralCode,
-      referredBy: referrer?.id,
+      display_name: displayName,
+      referral_code: referralCode,
+      referred_by: referrer?.id,
       status: isPaystackActivationEnabled() ? "pending_payment" : "onboarding",
-    })
-    .onConflictDoUpdate({
-      target: profiles.id,
-      set: {
-        displayName,
-        referredBy: referrer?.id,
-        status: isPaystackActivationEnabled() ? "pending_payment" : "onboarding",
-        updatedAt: new Date(),
-      },
+      updated_at: new Date().toISOString(),
     });
 
+  if (profileError) {
+    redirect(`/?auth_error=${encodeURIComponent(profileError.message)}`);
+  }
+
   if (providedReferralCode) {
-    await db
-      .insert(referralAttributions)
-      .values({
-        referralCode: providedReferralCode,
-        referredProfileId: data.user.id,
-        referrerId: referrer?.id,
-      })
-      .onConflictDoNothing();
+    await supabase.from("referral_attributions").insert({
+      referral_code: providedReferralCode,
+      referred_profile_id: data.user.id,
+      referrer_id: referrer?.id,
+    });
   }
 
   redirect(isPaystackActivationEnabled() ? "/activate?updated=account_created" : "/onboarding?updated=account_created");
@@ -109,11 +99,23 @@ export async function signInAction(formData: FormData) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("status")
+    .select("role, status")
     .eq("id", data.user.id)
     .maybeSingle();
 
-  if (profileError || !profile || profile.status === "pending_payment") {
+  if (profileError || !profile) {
+    redirect("/activate");
+  }
+
+  if (profile.status === "suspended") {
+    redirect(`/?auth_error=${encodeURIComponent("Account suspended.")}`);
+  }
+
+  if (profile.role === "admin") {
+    redirect("/admin?updated=login");
+  }
+
+  if (profile.status === "pending_payment") {
     redirect("/activate");
   }
 

@@ -1,10 +1,8 @@
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { profiles, signupPayments } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { getDb } from "@/lib/db";
 import { verifyPaystackTransaction } from "@/lib/paystack";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -22,30 +20,36 @@ export async function GET(request: Request) {
 
   const verified = await verifyPaystackTransaction(reference);
   const isSuccessful = verified?.status === "success";
-  const db = getDb();
-  const payment = await db.query.signupPayments.findFirst({
-    where: eq(signupPayments.reference, reference),
-  });
+  const supabase = await createClient();
+  const { data: payment, error: paymentError } = await supabase
+    .from("signup_payments")
+    .select("id, profile_id, amount_kobo, currency")
+    .eq("reference", reference)
+    .maybeSingle();
 
-  if (!payment) {
+  if (paymentError || !payment) {
     return NextResponse.redirect(new URL("/activate?payment_error=unknown_reference", request.url));
   }
 
-  await db
-    .update(signupPayments)
-    .set({
-      amountKobo: verified?.amount ?? payment.amountKobo,
+  const { error: updatePaymentError } = await supabase
+    .from("signup_payments")
+    .update({
+      amount_kobo: verified?.amount ?? payment.amount_kobo,
       currency: verified?.currency ?? payment.currency,
-      paidAt: verified?.paid_at ? new Date(verified.paid_at) : null,
-      providerMessage: isSuccessful ? "Verification successful" : "Payment was not successful",
+      paid_at: verified?.paid_at ? new Date(verified.paid_at).toISOString() : null,
+      provider_message: isSuccessful ? "Verification successful" : "Payment was not successful",
       status: isSuccessful ? "success" : "failed",
-      updatedAt: new Date(),
+      updated_at: new Date().toISOString(),
     })
-    .where(eq(signupPayments.id, payment.id));
+    .eq("id", payment.id);
+
+  if (updatePaymentError) {
+    return NextResponse.redirect(new URL(`/activate?payment_error=${encodeURIComponent(updatePaymentError.message)}`, request.url));
+  }
 
   await writeAuditLog({
     action: isSuccessful ? "payment.verified" : "payment.failed",
-    actorId: payment.profileId,
+    actorId: payment.profile_id,
     entityId: payment.id,
     entityType: "signup_payment",
     metadata: { reference },
@@ -55,13 +59,17 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/activate?payment_error=not_successful", request.url));
   }
 
-  await db
-    .update(profiles)
-    .set({
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({
       status: "onboarding",
-      updatedAt: new Date(),
+      updated_at: new Date().toISOString(),
     })
-    .where(eq(profiles.id, payment.profileId));
+    .eq("id", payment.profile_id);
+
+  if (profileError) {
+    return NextResponse.redirect(new URL(`/activate?payment_error=${encodeURIComponent(profileError.message)}`, request.url));
+  }
 
   return NextResponse.redirect(new URL("/onboarding?updated=payment_verified", request.url));
 }

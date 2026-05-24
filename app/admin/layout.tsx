@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Bell, Gauge, LayoutDashboard, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { BadgeCheck, Bell, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
 import { requireAdmin } from "@/lib/admin";
 
 const adminNav = [
@@ -9,6 +9,8 @@ const adminNav = [
   { href: "/admin/moderation", icon: ShieldCheck, label: "Moderation" },
   { href: "/admin/leaderboard", icon: Trophy, label: "Leaderboard" },
   { href: "/admin/platform", icon: Gauge, label: "Platform" },
+  { href: "/admin/email-blasts", icon: MailPlus, label: "Emails" },
+  { href: "/admin/badges", icon: BadgeCheck, label: "Badges" },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -38,9 +40,19 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             </a>
           ))}
         </nav>
-        <a className="rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-3 text-center font-semibold text-cyan-100" href="/feed">
-          Return to app
-        </a>
+        <div className="flex items-center gap-2">
+          <a className="flex min-h-10 flex-1 items-center justify-center rounded-[5px] border border-white/10 bg-white/[0.055] px-3 text-center font-semibold text-cyan-100" href="/feed">
+            Return to app
+          </a>
+          <a
+            aria-label="Admin notifications"
+            className="grid size-10 place-items-center rounded-[5px] border border-white/10 bg-white/[0.055] text-cyan-100 transition hover:bg-white/10"
+            href="/admin/platform"
+            title="Notifications"
+          >
+            <Bell className="size-4" />
+          </a>
+        </div>
       </aside>
       <header className="sticky top-0 z-20 border-b border-white/10 bg-[#08101d]/92 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="flex items-center justify-between gap-3">
@@ -51,7 +63,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             App
           </a>
         </div>
-        <nav className="mt-3 grid grid-cols-5 gap-1">
+        <nav className="mt-3 grid grid-cols-4 gap-1 sm:grid-cols-8">
           {adminNav.map((item) => (
             <a
               aria-label={item.label}

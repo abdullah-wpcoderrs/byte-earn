@@ -121,7 +121,7 @@ export function PostActions({
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Add comment</span>
             <textarea
-              className="min-h-24 resize-none rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55"
+              className="min-h-24 resize-none rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 py-2 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55"
               maxLength={500}
               onChange={(event) => setCommentBody(event.target.value)}
               placeholder="Write a comment..."

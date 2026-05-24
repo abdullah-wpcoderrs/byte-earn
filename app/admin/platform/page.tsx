@@ -17,7 +17,7 @@ function TextArea({ label, name, placeholder }: { label: string; name: string; p
     <label className="grid gap-2">
       <span className="font-medium text-slate-200">{label}</span>
       <textarea
-        className="min-h-28 rounded-[5px] border border-white/10 bg-white/[0.055] px-3 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+        className="min-h-28 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 py-2 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
         name={name}
         placeholder={placeholder}
       />
@@ -32,22 +32,32 @@ export default async function AdminPlatformPage() {
     <div className="grid gap-4">
       <section className="glass-strong p-4 sm:p-5">
         <p className="text-muted">Global switches, notifications, email blasts, and badges</p>
-        <h1 className="mt-1 text-[28px] font-semibold leading-tight">Platform tools</h1>
+        <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <h1 className="text-[28px] font-semibold leading-tight">Platform tools</h1>
+          <div className="flex flex-wrap gap-2">
+            <a className="rounded-[5px] border border-white/10 px-3 py-2 font-semibold text-cyan-100" href="/admin/email-blasts">
+              Email history
+            </a>
+            <a className="rounded-[5px] border border-white/10 px-3 py-2 font-semibold text-cyan-100" href="/admin/badges">
+              View badges
+            </a>
+          </div>
+        </div>
       </section>
 
       <form action={updatePlatformSettingsAction} className="glass grid gap-4 p-4 lg:grid-cols-2">
         <input name="settingsId" type="hidden" value={settings.id} />
         {[
-          ["postApprovalRequired", "Require post approval", settings.postApprovalRequired],
-          ["sponsoredWithdrawalsUnlocked", "Unlock sponsored withdrawals", settings.sponsoredWithdrawalsUnlocked],
-          ["underConstruction", "Under-construction global switch", settings.underConstruction],
+          ["postApprovalRequired", "Require post approval", settings.post_approval_required],
+          ["sponsoredWithdrawalsUnlocked", "Unlock sponsored withdrawals", settings.sponsored_withdrawals_unlocked],
+          ["underConstruction", "Under-construction global switch", settings.under_construction],
         ].map(([name, label, checked]) => (
           <label className="flex min-h-12 items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.055] px-3" key={String(name)}>
             <span className="font-semibold text-slate-100">{label}</span>
             <input className="size-4 accent-cyan-300" defaultChecked={Boolean(checked)} name={String(name)} type="checkbox" />
           </label>
         ))}
-        <TextInput defaultValue={settings.dailyWatchLimitSeconds} label="Daily watch limit seconds" name="dailyWatchLimitSeconds" inputMode="numeric" />
+        <TextInput defaultValue={settings.daily_watch_limit_seconds} label="Daily watch limit seconds" name="dailyWatchLimitSeconds" inputMode="numeric" />
         <Button className="lg:col-span-2" icon={<Save className="size-4" />} type="submit">
           Save platform settings
         </Button>
@@ -86,6 +96,16 @@ export default async function AdminPlatformPage() {
           <h2 className="text-base font-semibold">Custom badge</h2>
           <TextInput label="Name" name="name" />
           <TextInput defaultValue="#5fd7ff" label="Color" name="color" />
+          <label className="grid gap-2">
+            <span className="font-medium text-slate-200">Badge image</span>
+            <input
+              accept="image/gif,image/jpeg,image/png,image/svg+xml,image/webp"
+              className="min-h-9 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 py-1 text-slate-300 file:mr-3 file:rounded-[5px] file:border-0 file:bg-cyan-300 file:px-2.5 file:py-1 file:font-semibold file:text-slate-950"
+              name="imageFile"
+              required
+              type="file"
+            />
+          </label>
           <TextArea label="Description" name="description" />
           <Button icon={<BadgePlus className="size-4" />} type="submit">
             Create badge

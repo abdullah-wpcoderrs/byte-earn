@@ -4,7 +4,7 @@
 
 - Set `NEXT_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_URL`.
 - Set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-- Set `DATABASE_URL` to the Supabase Postgres connection string for Drizzle migrations and server database access.
+- Set `SUPABASE_POSTGRES_URL` to the Supabase Postgres connection string only for Drizzle migrations.
 - Set `NEXT_PUBLIC_APP_URL` to the production origin.
 - Set `PAYSTACK_SECRET_KEY`.
 - Confirm `PAYSTACK_ACTIVATION_ENABLED=true` for paid launch.

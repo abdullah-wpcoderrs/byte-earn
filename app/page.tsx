@@ -121,7 +121,7 @@ export default function AuthGatewayPage() {
                   <label className="grid gap-2">
                     <span className="font-medium text-slate-200">Full name</span>
                     <input
-                      className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+                      className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
                       name="displayName"
                       placeholder="Amina Kareem"
                       type="text"
@@ -131,7 +131,7 @@ export default function AuthGatewayPage() {
 
                 <label className="grid gap-2">
                   <span className="font-medium text-slate-200">Email address</span>
-                  <div className="flex min-h-11 items-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.055] px-3 transition focus-within:border-cyan-200/55">
+                  <div className="flex min-h-9 items-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 transition focus-within:border-cyan-200/55">
                     <Mail className="size-4 text-slate-400" />
                     <input
                       className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
@@ -144,7 +144,7 @@ export default function AuthGatewayPage() {
 
                 <label className="grid gap-2">
                   <span className="font-medium text-slate-200">Password</span>
-                  <div className="flex min-h-11 items-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.055] px-3 transition focus-within:border-cyan-200/55">
+                  <div className="flex min-h-9 items-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 transition focus-within:border-cyan-200/55">
                     <LockKeyhole className="size-4 text-slate-400" />
                     <input
                       className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
@@ -167,7 +167,7 @@ export default function AuthGatewayPage() {
                   <label className="grid gap-2">
                     <span className="font-medium text-slate-200">Referral code</span>
                     <input
-                      className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+                      className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
                       name="referralCode"
                       placeholder="Optional tracking code"
                       type="text"

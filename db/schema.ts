@@ -216,6 +216,7 @@ export const badges = pgTable("badges", {
   name: text("name").notNull(),
   color: text("color").notNull().default("#5fd7ff"),
   description: text("description").notNull(),
+  imageUrl: text("image_url"),
   createdBy: uuid("created_by").references(() => profiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

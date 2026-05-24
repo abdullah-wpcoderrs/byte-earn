@@ -1,12 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { platformSettings, posts } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { getDb } from "@/lib/db";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
-import { desc } from "drizzle-orm";
 
 type UploadPostType = "image_audio" | "image_text" | "video_text";
 
@@ -88,21 +85,34 @@ export async function createPostAction(formData: FormData) {
     type === "image_audio"
       ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, "Audio file is required for image plus MP3 posts."), userId: user.id })
       : null;
-  const latestSettings = await getDb().query.platformSettings.findFirst({
-    orderBy: desc(platformSettings.updatedAt),
-  });
-  const status = latestSettings?.postApprovalRequired === false ? "published" : "pending";
-  const [post] = await getDb()
-    .insert(posts)
-    .values({
-      audioUrl,
-      authorId: user.id,
+  const { data: latestSettings, error: settingsError } = await supabase
+    .from("platform_settings")
+    .select("post_approval_required")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (settingsError) {
+    redirect(`/upload?error=${encodeURIComponent(settingsError.message)}`);
+  }
+
+  const status = latestSettings?.post_approval_required === false ? "published" : "pending";
+  const { data: post, error: postError } = await supabase
+    .from("posts")
+    .insert({
+      audio_url: audioUrl,
+      author_id: user.id,
       caption,
-      mediaUrl,
+      media_url: mediaUrl,
       status,
       type,
     })
-    .returning({ id: posts.id });
+    .select("id")
+    .maybeSingle();
+
+  if (postError) {
+    redirect(`/upload?error=${encodeURIComponent(postError.message)}`);
+  }
 
   await writeAuditLog({
     action: "post.created",

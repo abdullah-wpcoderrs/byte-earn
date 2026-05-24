@@ -31,7 +31,7 @@ export default async function FeedPage() {
               <h1 className="text-base font-semibold">Creator feed</h1>
               <p className="mt-1 leading-5 text-muted">Image, video, and image plus audio posts share one vertical surface.</p>
             </div>
-            <a className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950" href="/upload">
+            <a className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-2.5 font-semibold text-slate-950" href="/upload">
               <Upload className="size-4" />
               Upload
             </a>

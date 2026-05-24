@@ -15,10 +15,14 @@ export default async function ActivatePage() {
     redirect("/");
   }
 
-  const { data: profile } = await supabase.from("profiles").select("status").eq("id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("role, status").eq("id", user.id).maybeSingle();
 
   if (!profile) {
     redirect("/");
+  }
+
+  if (profile.role === "admin") {
+    redirect("/admin");
   }
 
   if (profile.status === "onboarding") {

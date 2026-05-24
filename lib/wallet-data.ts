@@ -1,10 +1,17 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
-import { creditLedger, platformSettings, withdrawals } from "@/db/schema";
-import { getDb } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 import type { WalletBreakdown } from "@/lib/wallet";
+
+type LedgerRow = {
+  credits: number;
+  source: "adjustment" | "admin_credit" | "referral" | "sponsored_task" | "watch_time";
+};
+
+type WithdrawalRow = {
+  amount_credits: number;
+  status: "approved" | "paid" | "pending" | "rejected";
+};
 
 export async function getWalletPageData() {
   const supabase = await createClient();
@@ -16,28 +23,30 @@ export async function getWalletPageData() {
     return null;
   }
 
-  const db = getDb();
-  const [ledgerRows, withdrawalRows, settings] = await Promise.all([
-    db
-      .select({
-        credits: creditLedger.credits,
-        source: creditLedger.source,
-      })
-      .from(creditLedger)
-      .where(eq(creditLedger.profileId, user.id)),
-    db
-      .select({
-        amountCredits: withdrawals.amountCredits,
-        status: withdrawals.status,
-      })
-      .from(withdrawals)
-      .where(eq(withdrawals.profileId, user.id)),
-    db.query.platformSettings.findFirst({
-      orderBy: desc(platformSettings.updatedAt),
-    }),
+  const [ledgerResult, withdrawalResult, settingsResult] = await Promise.all([
+    supabase.from("credit_ledger").select("credits, source").eq("profile_id", user.id),
+    supabase.from("withdrawals").select("amount_credits, status").eq("profile_id", user.id),
+    supabase
+      .from("platform_settings")
+      .select("sponsored_withdrawals_unlocked")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
-  const wallet: WalletBreakdown = ledgerRows.reduce(
+  if (ledgerResult.error) {
+    throw new Error(ledgerResult.error.message);
+  }
+
+  if (withdrawalResult.error) {
+    throw new Error(withdrawalResult.error.message);
+  }
+
+  if (settingsResult.error) {
+    throw new Error(settingsResult.error.message);
+  }
+
+  const wallet: WalletBreakdown = ((ledgerResult.data ?? []) as LedgerRow[]).reduce(
     (current, row) => {
       if (row.source === "referral") {
         current.referralCredits += row.credits;
@@ -52,12 +61,12 @@ export async function getWalletPageData() {
     { referralCredits: 0, sponsoredCredits: 0, totalWithdrawnCredits: 0 },
   );
 
-  wallet.totalWithdrawnCredits = withdrawalRows
+  wallet.totalWithdrawnCredits = ((withdrawalResult.data ?? []) as WithdrawalRow[])
     .filter((row) => row.status === "paid")
-    .reduce((total, row) => total + row.amountCredits, 0);
+    .reduce((total, row) => total + row.amount_credits, 0);
 
   return {
-    adminSponsoredUnlocked: settings?.sponsoredWithdrawalsUnlocked ?? false,
+    adminSponsoredUnlocked: settingsResult.data?.sponsored_withdrawals_unlocked ?? false,
     wallet,
   };
 }

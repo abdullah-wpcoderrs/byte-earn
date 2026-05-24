@@ -1,9 +1,8 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gte, ilike, inArray, lte, ne, or, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { badges, creditLedger, platformSettings, posts, profiles, withdrawals } from "@/db/schema";
-import { getDb } from "@/lib/db";
+import { generateReferralCode } from "@/lib/referrals";
+import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type AdminSession = {
@@ -11,6 +10,89 @@ export type AdminSession = {
   email: string | null;
   displayName: string | null;
 };
+
+export type AdminUserFilters = {
+  earningMax?: number;
+  earningMin?: number;
+  page?: number;
+  percentile?: "top10" | "top25" | "bottom25";
+  q?: string;
+};
+
+export type AdminUserRow = Awaited<ReturnType<typeof getAdminUsers>>["rows"][number];
+
+const defaultPlatformSettings = {
+  daily_watch_limit_seconds: 1800,
+  id: "",
+  leaderboard_strict_mode: true,
+  leaderboard_uses_bookmarks: false,
+  leaderboard_uses_engagement: true,
+  leaderboard_uses_referrals: true,
+  leaderboard_uses_watch_time: false,
+  post_approval_required: true,
+  sponsored_withdrawals_unlocked: false,
+  under_construction: false,
+  updated_at: new Date(0).toISOString(),
+};
+
+function relationDisplayName(value: unknown) {
+  if (Array.isArray(value)) {
+    return (value[0] as { display_name?: string | null } | undefined)?.display_name ?? null;
+  }
+
+  return (value as { display_name?: string | null } | null | undefined)?.display_name ?? null;
+}
+
+async function createUniqueAdminReferralCode(supabase: ReturnType<typeof createAdminClient>) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const referralCode = generateReferralCode();
+    const { data, error } = await supabase.from("profiles").select("id").eq("referral_code", referralCode).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return referralCode;
+  }
+
+  return `${generateReferralCode()}${Date.now().toString(36).toUpperCase()}`;
+}
+
+async function syncMissingAuthProfiles(supabase: ReturnType<typeof createAdminClient>) {
+  const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (authError) throw new Error(authError.message);
+
+  const userIds = authUsers.users.map((user) => user.id);
+  if (userIds.length === 0) return;
+
+  const { data: profiles, error: profilesError } = await supabase.from("profiles").select("id").in("id", userIds);
+  if (profilesError) throw new Error(profilesError.message);
+
+  const existingIds = new Set((profiles ?? []).map((profile) => profile.id));
+  const missingUsers = authUsers.users.filter((user) => !existingIds.has(user.id));
+  if (missingUsers.length === 0) return;
+
+  const rows = await Promise.all(
+    missingUsers.map(async (user) => {
+      const role = user.app_metadata?.role === "admin" ? "admin" : "user";
+      const displayName =
+        typeof user.user_metadata?.display_name === "string" && user.user_metadata.display_name.trim()
+          ? user.user_metadata.display_name.trim()
+          : user.email?.split("@")[0] ?? "Unnamed user";
+
+      return {
+        display_name: displayName,
+        id: user.id,
+        referral_code: await createUniqueAdminReferralCode(supabase),
+        role,
+        status: role === "admin" ? "active" : "onboarding",
+        updated_at: new Date().toISOString(),
+      };
+    }),
+  );
+
+  const { error: insertError } = await supabase.from("profiles").insert(rows);
+  if (insertError) throw new Error(insertError.message);
+}
 
 export async function requireAdmin(): Promise<AdminSession> {
   const supabase = await createClient();
@@ -22,99 +104,119 @@ export async function requireAdmin(): Promise<AdminSession> {
     redirect("/?admin=signin");
   }
 
-  const profile = await getDb().query.profiles.findFirst({
-    columns: {
-      id: true,
-      displayName: true,
-      role: true,
-      status: true,
-    },
-    where: eq(profiles.id, user.id),
-  });
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, role, status")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  if (!profile || profile.role !== "admin" || profile.status === "suspended") {
+  if (error || !profile || profile.role !== "admin" || profile.status === "suspended") {
     redirect("/feed?admin=forbidden");
   }
 
   return {
-    displayName: profile.displayName,
+    displayName: profile.display_name,
     email: user.email ?? null,
     id: user.id,
   };
 }
 
-export async function getAdminStats() {
-  const db = getDb();
-  const [usersTotal] = await db.select({ value: count() }).from(profiles);
-  const [pendingPosts] = await db.select({ value: count() }).from(posts).where(eq(posts.status, "pending"));
-  const [pendingWithdrawals] = await db.select({ value: count() }).from(withdrawals).where(eq(withdrawals.status, "pending"));
-  const [badgeTotal] = await db.select({ value: count() }).from(badges);
+async function countRows(table: "badges" | "posts" | "profiles" | "withdrawals", filters?: Record<string, string>) {
+  const supabase = await createClient();
+  let query = supabase.from(table).select("id", { count: "exact", head: true });
 
-  return {
-    badges: badgeTotal?.value ?? 0,
-    pendingPosts: pendingPosts?.value ?? 0,
-    pendingWithdrawals: pendingWithdrawals?.value ?? 0,
-    users: usersTotal?.value ?? 0,
-  };
+  Object.entries(filters ?? {}).forEach(([key, value]) => {
+    query = query.eq(key, value);
+  });
+
+  const { count, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+  return count ?? 0;
+}
+
+export async function getAdminStats() {
+  const [users, pendingPosts, pendingWithdrawals, badges] = await Promise.all([
+    countRows("profiles"),
+    countRows("posts", { status: "pending" }),
+    countRows("withdrawals", { status: "pending" }),
+    countRows("badges"),
+  ]);
+
+  return { badges, pendingPosts, pendingWithdrawals, users };
 }
 
 export async function getOrCreatePlatformSettings() {
-  const db = getDb();
-  const existing = await db.query.platformSettings.findFirst({
-    orderBy: desc(platformSettings.updatedAt),
-  });
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data: existing, error } = await supabase
+    .from("platform_settings")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   if (existing) {
     return existing;
   }
 
-  const [created] = await db.insert(platformSettings).values({}).returning();
+  const { data: created, error: createError } = await supabase.from("platform_settings").insert({}).select("*").single();
+  if (createError) {
+    return defaultPlatformSettings;
+  }
   return created;
 }
 
-export type AdminUserFilters = {
-  earningMax?: number;
-  earningMin?: number;
-  page?: number;
-  percentile?: "top10" | "top25" | "bottom25";
-  q?: string;
-};
-
 export async function getAdminUsers(filters: AdminUserFilters) {
+  await requireAdmin();
+  const usesAdminClient = hasSupabaseAdminKey();
+  const supabase = usesAdminClient ? createAdminClient() : await createClient();
+  if (usesAdminClient) {
+    await syncMissingAuthProfiles(supabase as ReturnType<typeof createAdminClient>);
+  }
   const pageSize = 12;
   const page = Math.max(1, filters.page ?? 1);
-  const whereParts = [
-    filters.q
-      ? or(ilike(profiles.displayName, `%${filters.q}%`), ilike(profiles.referralCode, `%${filters.q}%`))
-      : undefined,
-    Number.isFinite(filters.earningMin) ? gte(profiles.creditsBalance, filters.earningMin ?? 0) : undefined,
-    Number.isFinite(filters.earningMax) ? lte(profiles.creditsBalance, filters.earningMax ?? 0) : undefined,
-  ].filter(Boolean);
-
-  const where = whereParts.length > 0 ? and(...whereParts) : undefined;
-  const db = getDb();
-  const [totalRow] = await db.select({ value: count() }).from(profiles).where(where);
-  const total = totalRow?.value ?? 0;
-  const rows = await db
-    .select({
-      createdAt: profiles.createdAt,
-      creditsBalance: profiles.creditsBalance,
-      displayName: profiles.displayName,
-      id: profiles.id,
-      referralCode: profiles.referralCode,
-      referralCount: profiles.referralCount,
-      role: profiles.role,
-      status: profiles.status,
-    })
-    .from(profiles)
-    .where(where)
-    .orderBy(
-      filters.percentile === "bottom25" ? asc(profiles.referralCount) : desc(profiles.referralCount),
-      desc(profiles.createdAt),
+  let countQuery = supabase.from("profiles").select("id", { count: "exact", head: true });
+  let rowsQuery = supabase
+    .from("profiles")
+    .select(
+      "id, display_name, referral_code, referred_by, referral_count, credits_balance, sponsored_credits_locked, role, status, bank_name, account_number, account_name, created_at, updated_at",
     )
-    .limit(pageSize)
-    .offset((page - 1) * pageSize);
+    .order("referral_count", { ascending: filters.percentile === "bottom25" })
+    .order("created_at", { ascending: false })
+    .range((page - 1) * pageSize, page * pageSize - 1);
 
+  if (filters.q) {
+    const safeQ = filters.q.replace(/[%(),]/g, "");
+    const expression = `display_name.ilike.%${safeQ}%,referral_code.ilike.%${safeQ}%`;
+    countQuery = countQuery.or(expression);
+    rowsQuery = rowsQuery.or(expression);
+  }
+
+  if (Number.isFinite(filters.earningMin)) {
+    countQuery = countQuery.gte("credits_balance", filters.earningMin ?? 0);
+    rowsQuery = rowsQuery.gte("credits_balance", filters.earningMin ?? 0);
+  }
+
+  if (Number.isFinite(filters.earningMax)) {
+    countQuery = countQuery.lte("credits_balance", filters.earningMax ?? 0);
+    rowsQuery = rowsQuery.lte("credits_balance", filters.earningMax ?? 0);
+  }
+
+  const [{ count, error: countError }, { data, error: rowsError }] = await Promise.all([countQuery, rowsQuery]);
+  if (countError) {
+    throw new Error(countError.message);
+  }
+  if (rowsError) {
+    throw new Error(rowsError.message);
+  }
+
+  const total = count ?? 0;
   const limit =
     filters.percentile === "top10"
       ? Math.max(1, Math.ceil(total * 0.1))
@@ -125,69 +227,171 @@ export async function getAdminUsers(filters: AdminUserFilters) {
   return {
     page,
     pageSize,
-    rows: limit ? rows.slice(0, limit) : rows,
+    rows: (limit ? (data ?? []).slice(0, limit) : data ?? []).map((user) => ({
+      accountName: user.account_name,
+      accountNumber: user.account_number,
+      bankName: user.bank_name,
+      createdAt: user.created_at,
+      creditsBalance: user.credits_balance,
+      displayName: user.display_name,
+      id: user.id,
+      referralCode: user.referral_code,
+      referralCount: user.referral_count,
+      referredBy: user.referred_by,
+      role: user.role,
+      sponsoredCreditsLocked: user.sponsored_credits_locked,
+      status: user.status,
+      updatedAt: user.updated_at,
+    })),
     total,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
 }
 
 export async function getModerationPosts(status?: "pending" | "published" | "rejected") {
-  return getDb()
-    .select({
-      authorName: profiles.displayName,
-      caption: posts.caption,
-      commentsCount: posts.commentsCount,
-      createdAt: posts.createdAt,
-      id: posts.id,
-      likesCount: posts.likesCount,
-      mediaUrl: posts.mediaUrl,
-      status: posts.status,
-      type: posts.type,
-    })
-    .from(posts)
-    .leftJoin(profiles, eq(posts.authorId, profiles.id))
-    .where(status ? eq(posts.status, status) : undefined)
-    .orderBy(desc(posts.createdAt))
+  const supabase = await createClient();
+  let query = supabase
+    .from("posts")
+    .select("id, type, status, caption, media_url, likes_count, comments_count, created_at, profiles:author_id(display_name)")
+    .order("created_at", { ascending: false })
     .limit(40);
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((post) => ({
+    authorName: relationDisplayName(post.profiles),
+    caption: post.caption,
+    commentsCount: post.comments_count,
+    createdAt: new Date(post.created_at),
+    id: post.id,
+    likesCount: post.likes_count,
+    mediaUrl: post.media_url,
+    status: post.status,
+    type: post.type,
+  }));
 }
 
 export async function getLeaderboardRows() {
-  return getDb()
-    .select({
-      creditsBalance: profiles.creditsBalance,
-      displayName: profiles.displayName,
-      id: profiles.id,
-      referralCount: profiles.referralCount,
-      score: sql<number>`${profiles.referralCount} * 100 + ${profiles.creditsBalance}`,
-      status: profiles.status,
-    })
-    .from(profiles)
-    .where(ne(profiles.status, "pending_payment"))
-    .orderBy(desc(sql`${profiles.referralCount} * 100 + ${profiles.creditsBalance}`))
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, referral_count, credits_balance, status")
+    .neq("status", "pending_payment")
     .limit(25);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? [])
+    .map((row) => ({
+      creditsBalance: row.credits_balance,
+      displayName: row.display_name,
+      id: row.id,
+      referralCount: row.referral_count,
+      score: row.referral_count * 100 + row.credits_balance,
+      status: row.status,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 25);
 }
 
 export async function getWithdrawalRequests(status?: "pending" | "approved" | "paid" | "rejected") {
-  return getDb()
-    .select({
-      accountName: withdrawals.accountName,
-      accountNumber: withdrawals.accountNumber,
-      amountCredits: withdrawals.amountCredits,
-      amountNaira: withdrawals.amountNaira,
-      bankName: withdrawals.bankName,
-      createdAt: withdrawals.createdAt,
-      displayName: profiles.displayName,
-      id: withdrawals.id,
-      profileId: withdrawals.profileId,
-      reviewNote: withdrawals.reviewNote,
-      reviewedAt: withdrawals.reviewedAt,
-      status: withdrawals.status,
-    })
-    .from(withdrawals)
-    .leftJoin(profiles, eq(withdrawals.profileId, profiles.id))
-    .where(status ? eq(withdrawals.status, status) : undefined)
-    .orderBy(desc(withdrawals.createdAt))
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  let query = supabase
+    .from("withdrawals")
+    .select("id, profile_id, status, amount_credits, amount_naira, bank_name, account_number, account_name, created_at, profiles:profile_id(display_name)")
+    .order("created_at", { ascending: false })
     .limit(60);
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((row) => ({
+    accountName: row.account_name,
+    accountNumber: row.account_number,
+    amountCredits: row.amount_credits,
+    amountNaira: row.amount_naira,
+    bankName: row.bank_name,
+    createdAt: new Date(row.created_at),
+    displayName: relationDisplayName(row.profiles),
+    id: row.id,
+    profileId: row.profile_id,
+    reviewNote: null as string | null,
+    reviewedAt: null as Date | null,
+    status: row.status,
+  }));
 }
 
-export { creditLedger, inArray, profiles };
+export async function getEmailBlastHistory() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data, error } = await supabase
+    .from("email_blasts")
+    .select("id, subject, html_body, audience, created_at, profiles:created_by(display_name)")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((blast) => ({
+    audience: blast.audience,
+    bodyPreview: blast.html_body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 140),
+    createdAt: new Date(blast.created_at),
+    createdBy: relationDisplayName(blast.profiles),
+    id: blast.id,
+    subject: blast.subject,
+  }));
+}
+
+export async function getAdminBadges() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const primaryResult = await supabase
+    .from("badges")
+    .select("id, name, color, description, image_url, created_at, profiles:created_by(display_name)")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (primaryResult.error && !primaryResult.error.message.includes("image_url")) {
+    throw new Error(primaryResult.error.message);
+  }
+
+  const rows = primaryResult.error?.message.includes("image_url")
+    ? (await supabase
+      .from("badges")
+      .select("id, name, color, description, created_at, profiles:created_by(display_name)")
+      .order("created_at", { ascending: false })
+      .limit(100))
+    : primaryResult;
+
+  if (rows.error) {
+    throw new Error(rows.error.message);
+  }
+
+  return (rows.data ?? []).map((badge) => ({
+    color: badge.color,
+    createdAt: new Date(badge.created_at),
+    createdBy: relationDisplayName(badge.profiles),
+    description: badge.description,
+    id: badge.id,
+    imageUrl: "image_url" in badge ? (badge.image_url as string | null) : null,
+    name: badge.name,
+  }));
+}

@@ -1,8 +1,5 @@
 import "server-only";
 
-import { and, desc, eq, inArray, or } from "drizzle-orm";
-import { postBookmarks, postComments, postLikes, posts, profiles } from "@/db/schema";
-import { getDb } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -39,12 +36,49 @@ export type ProfilePost = {
   type: "image_audio" | "image_text" | "video_text";
 };
 
-export type ProfileSummary = {
-  displayName: string | null;
+type PostRow = {
+  audio_url: string | null;
+  author_id: string;
+  bookmarks_count: number;
+  caption: string;
+  comments_count: number;
   id: string;
-  initials: string;
-  referralCode: string;
-  referralCount: number;
+  likes_count: number;
+  media_url: string;
+  profiles: RelationProfile;
+  type: "image_audio" | "image_text" | "video_text";
+};
+
+type CommentRow = {
+  body: string;
+  id: string;
+  post_id: string;
+  profiles:
+    | {
+        display_name: string | null;
+      }
+    | Array<{
+        display_name: string | null;
+      }>
+    | null;
+};
+
+type RelationProfile =
+  | {
+      display_name: string | null;
+      referral_code?: string;
+    }
+  | Array<{
+      display_name: string | null;
+      referral_code?: string;
+    }>
+  | null;
+
+type ProfileRow = {
+  display_name: string | null;
+  id: string;
+  referral_code: string;
+  referral_count: number;
 };
 
 function initialsFor(name: string | null, fallback: string) {
@@ -61,6 +95,10 @@ function publicHandle(profileId: string, referralCode: string) {
   return referralCode || profileId;
 }
 
+function firstRelation<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 async function getViewerId() {
   const supabase = await createClient();
   const {
@@ -70,109 +108,103 @@ async function getViewerId() {
   return user?.id ?? null;
 }
 
-async function attachPostMetadata(rows: Array<{
-  audioUrl: string | null;
-  authorId: string;
-  authorName: string | null;
-  bookmarksCount: number;
+function toProfilePost(row: {
   caption: string;
-  commentsCount: number;
   id: string;
-  likesCount: number;
-  mediaUrl: string;
-  referralCode: string | null;
+  likes_count: number;
+  media_url: string;
   type: "image_audio" | "image_text" | "video_text";
-}>, viewerId: string | null) {
-  const db = getDb();
+}): ProfilePost {
+  return {
+    caption: row.caption,
+    id: row.id,
+    likesCount: row.likes_count,
+    mediaUrl: row.media_url,
+    type: row.type,
+  };
+}
+
+async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
+  const supabase = await createClient();
   const postIds = rows.map((row) => row.id);
 
   if (postIds.length === 0) {
     return [];
   }
 
-  const [comments, likes, bookmarks] = await Promise.all([
-    db
-      .select({
-        authorName: profiles.displayName,
-        body: postComments.body,
-        id: postComments.id,
-        postId: postComments.postId,
-      })
-      .from(postComments)
-      .leftJoin(profiles, eq(postComments.profileId, profiles.id))
-      .where(inArray(postComments.postId, postIds))
-      .orderBy(desc(postComments.createdAt))
-      .limit(120),
-    viewerId
-      ? db.select({ postId: postLikes.postId }).from(postLikes).where(and(eq(postLikes.profileId, viewerId), inArray(postLikes.postId, postIds)))
-      : Promise.resolve([]),
-    viewerId
-      ? db.select({ postId: postBookmarks.postId }).from(postBookmarks).where(and(eq(postBookmarks.profileId, viewerId), inArray(postBookmarks.postId, postIds)))
-      : Promise.resolve([]),
-  ]);
+  const commentsQuery = supabase
+    .from("post_comments")
+    .select("id, post_id, body, profiles:profile_id(display_name)")
+    .in("post_id", postIds)
+    .order("created_at", { ascending: false })
+    .limit(120);
 
-  const likedIds = new Set(likes.map((like) => like.postId));
-  const bookmarkedIds = new Set(bookmarks.map((bookmark) => bookmark.postId));
+  const likesQuery = viewerId
+    ? supabase.from("post_likes").select("post_id").eq("profile_id", viewerId).in("post_id", postIds)
+    : Promise.resolve({ data: [] });
+
+  const bookmarksQuery = viewerId
+    ? supabase.from("post_bookmarks").select("post_id").eq("profile_id", viewerId).in("post_id", postIds)
+    : Promise.resolve({ data: [] });
+
+  const [commentsResult, likesResult, bookmarksResult] = await Promise.all([commentsQuery, likesQuery, bookmarksQuery]);
+  const comments = (commentsResult.data ?? []) as unknown as CommentRow[];
+  const likedIds = new Set((likesResult.data ?? []).map((like) => like.post_id));
+  const bookmarkedIds = new Set((bookmarksResult.data ?? []).map((bookmark) => bookmark.post_id));
   const commentsByPost = new Map<string, FeedComment[]>();
 
   comments.forEach((comment) => {
-    const existing = commentsByPost.get(comment.postId) ?? [];
+    const existing = commentsByPost.get(comment.post_id) ?? [];
     if (existing.length < 8) {
       existing.push({
-        author: comment.authorName ?? "Creator",
+        author: firstRelation(comment.profiles)?.display_name ?? "Creator",
         body: comment.body,
         id: comment.id,
       });
-      commentsByPost.set(comment.postId, existing);
+      commentsByPost.set(comment.post_id, existing);
     }
   });
 
   return rows.map((row): FeedPost => {
-    const referralCode = row.referralCode ?? row.authorId;
+    const authorProfile = firstRelation(row.profiles as RelationProfile);
+    const authorName = authorProfile?.display_name ?? null;
+    const referralCode = authorProfile?.referral_code ?? row.author_id;
 
     return {
-      audioUrl: row.audioUrl,
-      author: row.authorName ?? "Creator",
-      authorId: row.authorId,
-      avatar: initialsFor(row.authorName, referralCode),
+      audioUrl: row.audio_url,
+      author: authorName ?? "Creator",
+      authorId: row.author_id,
+      avatar: initialsFor(authorName, referralCode),
       bookmarkedByViewer: bookmarkedIds.has(row.id),
-      bookmarksCount: row.bookmarksCount,
+      bookmarksCount: row.bookmarks_count,
       caption: row.caption,
       comments: commentsByPost.get(row.id) ?? [],
-      commentsCount: row.commentsCount,
-      handle: publicHandle(row.authorId, referralCode),
+      commentsCount: row.comments_count,
+      handle: publicHandle(row.author_id, referralCode),
       id: row.id,
       likedByViewer: likedIds.has(row.id),
-      likesCount: row.likesCount,
-      mediaUrl: row.mediaUrl,
+      likesCount: row.likes_count,
+      mediaUrl: row.media_url,
       type: row.type,
     };
   });
 }
 
 export async function getFeedPosts() {
+  const supabase = await createClient();
   const viewerId = await getViewerId();
-  const rows = await getDb()
-    .select({
-      audioUrl: posts.audioUrl,
-      authorId: posts.authorId,
-      authorName: profiles.displayName,
-      bookmarksCount: posts.bookmarksCount,
-      caption: posts.caption,
-      commentsCount: posts.commentsCount,
-      id: posts.id,
-      likesCount: posts.likesCount,
-      mediaUrl: posts.mediaUrl,
-      referralCode: profiles.referralCode,
-      type: posts.type,
-    })
-    .from(posts)
-    .leftJoin(profiles, eq(posts.authorId, profiles.id))
-    .where(eq(posts.status, "published"))
-    .orderBy(desc(posts.createdAt))
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id, author_id, type, caption, media_url, audio_url, likes_count, bookmarks_count, comments_count, profiles:author_id(display_name, referral_code)")
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
     .limit(30);
 
-  return attachPostMetadata(rows, viewerId);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return attachPostMetadata((data ?? []) as unknown as PostRow[], viewerId);
 }
 
 export async function getPostById(postId: string) {
@@ -180,110 +212,106 @@ export async function getPostById(postId: string) {
     return null;
   }
 
+  const supabase = await createClient();
   const viewerId = await getViewerId();
-  const rows = await getDb()
-    .select({
-      audioUrl: posts.audioUrl,
-      authorId: posts.authorId,
-      authorName: profiles.displayName,
-      bookmarksCount: posts.bookmarksCount,
-      caption: posts.caption,
-      commentsCount: posts.commentsCount,
-      id: posts.id,
-      likesCount: posts.likesCount,
-      mediaUrl: posts.mediaUrl,
-      referralCode: profiles.referralCode,
-      type: posts.type,
-    })
-    .from(posts)
-    .leftJoin(profiles, eq(posts.authorId, profiles.id))
-    .where(and(eq(posts.id, postId), eq(posts.status, "published")))
-    .limit(1);
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id, author_id, type, caption, media_url, audio_url, likes_count, bookmarks_count, comments_count, profiles:author_id(display_name, referral_code)")
+    .eq("id", postId)
+    .eq("status", "published")
+    .maybeSingle();
 
-  const [post] = await attachPostMetadata(rows, viewerId);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const [post] = await attachPostMetadata([data as unknown as PostRow], viewerId);
   return post ?? null;
 }
 
 export async function getOwnProfileData() {
+  const supabase = await createClient();
   const viewerId = await getViewerId();
   if (!viewerId) {
     return null;
   }
 
-  const db = getDb();
-  const profile = await db.query.profiles.findFirst({
-    columns: {
-      displayName: true,
-      id: true,
-      referralCode: true,
-      referralCount: true,
-    },
-    where: eq(profiles.id, viewerId),
-  });
+  const [profileResult, postsResult] = await Promise.all([
+    supabase.from("profiles").select("id, display_name, referral_code, referral_count").eq("id", viewerId).maybeSingle(),
+    supabase
+      .from("posts")
+      .select("id, type, caption, media_url, likes_count")
+      .eq("author_id", viewerId)
+      .order("created_at", { ascending: false })
+      .limit(60),
+  ]);
 
+  if (profileResult.error) {
+    throw new Error(profileResult.error.message);
+  }
+
+  if (postsResult.error) {
+    throw new Error(postsResult.error.message);
+  }
+
+  const profile = profileResult.data as ProfileRow | null;
   if (!profile) {
     return null;
   }
 
-  const gridPosts = await db
-    .select({
-      caption: posts.caption,
-      id: posts.id,
-      likesCount: posts.likesCount,
-      mediaUrl: posts.mediaUrl,
-      type: posts.type,
-    })
-    .from(posts)
-    .where(eq(posts.authorId, viewerId))
-    .orderBy(desc(posts.createdAt))
-    .limit(60);
-
   return {
     profile: {
-      ...profile,
-      initials: initialsFor(profile.displayName, profile.referralCode),
+      displayName: profile.display_name,
+      id: profile.id,
+      initials: initialsFor(profile.display_name, profile.referral_code),
+      referralCode: profile.referral_code,
+      referralCount: profile.referral_count,
     },
-    posts: gridPosts,
+    posts: (postsResult.data ?? []).map(toProfilePost),
   };
 }
 
 export async function getPublicProfileData(identifier: string) {
+  const supabase = await createClient();
   const normalized = identifier.trim();
-  const db = getDb();
-  const profile = await db.query.profiles.findFirst({
-    columns: {
-      displayName: true,
-      id: true,
-      referralCode: true,
-      referralCount: true,
-    },
-    where: uuidPattern.test(normalized)
-      ? eq(profiles.id, normalized)
-      : or(eq(profiles.referralCode, normalized), eq(profiles.referralCode, normalized.toUpperCase())),
-  });
+  const query = supabase.from("profiles").select("id, display_name, referral_code, referral_count");
+  const profileResult = uuidPattern.test(normalized)
+    ? await query.eq("id", normalized).maybeSingle()
+    : await query.eq("referral_code", normalized.toUpperCase()).maybeSingle();
 
+  if (profileResult.error) {
+    throw new Error(profileResult.error.message);
+  }
+
+  const profile = profileResult.data as ProfileRow | null;
   if (!profile) {
     return null;
   }
 
-  const gridPosts = await db
-    .select({
-      caption: posts.caption,
-      id: posts.id,
-      likesCount: posts.likesCount,
-      mediaUrl: posts.mediaUrl,
-      type: posts.type,
-    })
-    .from(posts)
-    .where(and(eq(posts.authorId, profile.id), eq(posts.status, "published")))
-    .orderBy(desc(posts.createdAt))
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id, type, caption, media_url, likes_count")
+    .eq("author_id", profile.id)
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
     .limit(60);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   return {
     profile: {
-      ...profile,
-      initials: initialsFor(profile.displayName, profile.referralCode),
+      displayName: profile.display_name,
+      id: profile.id,
+      initials: initialsFor(profile.display_name, profile.referral_code),
+      referralCode: profile.referral_code,
+      referralCount: profile.referral_count,
     },
-    posts: gridPosts,
+    posts: (data ?? []).map(toProfilePost),
   };
 }

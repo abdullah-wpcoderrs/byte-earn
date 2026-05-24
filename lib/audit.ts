@@ -1,7 +1,6 @@
 import "server-only";
 
-import { auditLogs } from "@/db/schema";
-import { getDb } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
 
 type AuditInput = {
   action: string;
@@ -13,12 +12,17 @@ type AuditInput = {
 };
 
 export async function writeAuditLog(input: AuditInput) {
-  await getDb().insert(auditLogs).values({
+  const supabase = await createClient();
+  const { error } = await supabase.from("audit_logs").insert({
     action: input.action,
-    actorId: input.actorId ?? null,
-    actorType: input.actorType ?? "user",
-    entityId: input.entityId ?? null,
-    entityType: input.entityType,
+    actor_id: input.actorId ?? null,
+    actor_type: input.actorType ?? "user",
+    entity_id: input.entityId ?? null,
+    entity_type: input.entityType,
     metadata: input.metadata ? JSON.stringify(input.metadata) : null,
   });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }

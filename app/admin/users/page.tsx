@@ -1,5 +1,5 @@
-import { Coins, Search, UserMinus } from "lucide-react";
-import { bulkUserAction } from "@/app/admin/actions";
+import { Search } from "lucide-react";
+import { UserManagementTable } from "./user-management-table";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { TextInput } from "@/components/ui/input";
@@ -48,50 +48,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         </Button>
       </form>
 
-      <form action={bulkUserAction} className="glass overflow-hidden">
-        <div className="grid gap-3 border-b border-white/10 p-4 md:grid-cols-[180px_130px_1fr_auto]">
-          <Select label="Bulk action" name="bulkAction" required>
-            <option value="credit">Credit selected</option>
-            <option value="deduct">Deduct points</option>
-            <option value="remove">Remove balance</option>
-            <option value="suspend">Suspend</option>
-            <option value="delete">Delete profile</option>
-          </Select>
-          <TextInput icon={<Coins className="size-4" />} label="Credits" name="credits" inputMode="numeric" placeholder="0" />
-          <TextInput label="Reason" name="reason" placeholder="Visible ledger description" />
-          <Button className="self-end" icon={<UserMinus className="size-4" />} type="submit" variant="secondary">
-            Apply
-          </Button>
-        </div>
-
-        <div className="hidden grid-cols-[44px_1.4fr_110px_110px_110px_120px] border-b border-white/10 px-4 py-3 font-semibold text-slate-300 md:grid">
-          <span />
-          <span>User</span>
-          <span>Status</span>
-          <span>Role</span>
-          <span>Referrals</span>
-          <span>Credits</span>
-        </div>
-
-        <div className="divide-y divide-white/10">
-          {users.rows.map((user) => (
-            <label className="grid gap-3 p-4 md:grid-cols-[44px_1.4fr_110px_110px_110px_120px] md:items-center" key={user.id}>
-              <input className="size-4 accent-cyan-300" name="userIds" type="checkbox" value={user.id} />
-              <span>
-                <span className="block font-semibold text-slate-100">{user.displayName ?? "Unnamed user"}</span>
-                <span className="text-muted">{user.referralCode}</span>
-              </span>
-              <span className="rounded-[5px] border border-white/10 px-2 py-1 text-center text-slate-200">{user.status}</span>
-              <span className="text-slate-300">{user.role}</span>
-              <span className="text-slate-300">{user.referralCount}</span>
-              <span className="font-semibold text-cyan-100">{user.creditsBalance.toLocaleString()}</span>
-            </label>
-          ))}
-        </div>
-        {users.rows.length === 0 ? (
-          <div className="p-6 text-center text-muted">No users match these filters.</div>
-        ) : null}
-      </form>
+      <UserManagementTable users={users.rows} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-muted">
         <p>

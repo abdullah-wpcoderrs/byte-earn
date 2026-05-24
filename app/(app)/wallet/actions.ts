@@ -2,8 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
-import { withdrawals } from "@/db/schema";
-import { getDb } from "@/lib/db";
 import { nairaToCredits } from "@/lib/money";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -39,14 +37,22 @@ export async function requestWithdrawalAction(formData: FormData) {
 
   assertRateLimit(`wallet:withdrawal:${user.id}`, 3, 60 * 60 * 1000);
 
-  const [request] = await getDb().insert(withdrawals).values({
-    accountName,
-    accountNumber,
-    amountCredits: Math.round(nairaToCredits(amountNaira)),
-    amountNaira: amountNaira.toFixed(2),
-    bankName,
-    profileId: user.id,
-  }).returning({ id: withdrawals.id });
+  const { data: request, error } = await supabase
+    .from("withdrawals")
+    .insert({
+      account_name: accountName,
+      account_number: accountNumber,
+      amount_credits: Math.round(nairaToCredits(amountNaira)),
+      amount_naira: amountNaira.toFixed(2),
+      bank_name: bankName,
+      profile_id: user.id,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    redirect(`/wallet?withdrawal_error=${encodeURIComponent(error.message)}`);
+  }
 
   await writeAuditLog({
     action: "withdrawal.requested",

@@ -1,9 +1,6 @@
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { profiles, signupPayments } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
 import { SIGNUP_FEE_KOBO } from "@/lib/config/pricing";
-import { getDb } from "@/lib/db";
 import { initializePaystackTransaction } from "@/lib/paystack";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -24,21 +21,26 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL("/activate?payment_error=rate_limited", request.url));
   }
 
-  const db = getDb();
-  const profile = await db.query.profiles.findFirst({
-    where: eq(profiles.id, user.id),
-  });
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role, status")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  if (!profile) {
+  if (profileError || !profile) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  if (profile.status === "onboarding") {
-    return NextResponse.redirect(new URL("/onboarding", request.url));
+  if (profile.role === "admin") {
+    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   if (profile.status === "active") {
     return NextResponse.redirect(new URL("/feed", request.url));
+  }
+
+  if (profile.status === "onboarding") {
+    return NextResponse.redirect(new URL("/onboarding", request.url));
   }
 
   const amountKobo = SIGNUP_FEE_KOBO;
@@ -52,13 +54,17 @@ export async function POST(request: Request) {
     reference,
   });
 
-  const [payment] = await db.insert(signupPayments).values({
-    accessCode: transaction.access_code,
-    amountKobo,
-    authorizationUrl: transaction.authorization_url,
-    profileId: user.id,
+  const { data: payment, error: paymentError } = await supabase.from("signup_payments").insert({
+    access_code: transaction.access_code,
+    amount_kobo: amountKobo,
+    authorization_url: transaction.authorization_url,
+    profile_id: user.id,
     reference,
-  }).returning({ id: signupPayments.id });
+  }).select("id").maybeSingle();
+
+  if (paymentError) {
+    return NextResponse.redirect(new URL(`/activate?payment_error=${encodeURIComponent(paymentError.message)}`, request.url));
+  }
 
   await writeAuditLog({
     action: "payment.initialized",

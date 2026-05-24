@@ -1,8 +1,6 @@
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { profiles, referralVisits } from "@/db/schema";
-import { getDb } from "@/lib/db";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
@@ -24,16 +22,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       return response;
     }
 
-    const db = getDb();
-    const referrer = await db.query.profiles.findFirst({
-      where: eq(profiles.referralCode, normalizedCode),
-      columns: { id: true },
-    });
+    const supabase = await createClient();
+    const { data: referrer } = await supabase.from("profiles").select("id").eq("referral_code", normalizedCode).maybeSingle();
 
-    await db.insert(referralVisits).values({
-      referralCode: normalizedCode,
-      referrerId: referrer?.id,
-      userAgent: request.headers.get("user-agent"),
+    await supabase.from("referral_visits").insert({
+      referral_code: normalizedCode,
+      referrer_id: referrer?.id,
+      user_agent: request.headers.get("user-agent"),
     });
   } catch {
     // Referral cookies still preserve attribution if database tracking is unavailable locally.

@@ -88,14 +88,35 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  const isAdmin = profile.role === "admin";
+  const isSuspended = profile.status === "suspended";
+
+  if (isSuspended && touchesAccountFlow && pathname !== "/") {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/";
+    redirectUrl.searchParams.set("auth_error", "Account suspended.");
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (isAdmin) {
+    if (pathname === "/" || isRoute(pathname, "/activate") || isRoute(pathname, "/onboarding")) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/admin";
+      redirectUrl.search = "";
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    return response;
+  }
+
   if (pathname === "/" && profile.status === "active") {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = profile.role === "admin" ? "/admin" : "/feed";
+    redirectUrl.pathname = "/feed";
     redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (isRoute(pathname, "/admin") && (profile.role !== "admin" || profile.status === "suspended")) {
+  if (isRoute(pathname, "/admin")) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/feed";
     redirectUrl.searchParams.set("admin", "forbidden");
@@ -113,13 +134,6 @@ export async function updateSession(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/onboarding";
     redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  if (profile.status === "suspended" && (isRoute(pathname, "/admin") || protectedRoutes.some((route) => isRoute(pathname, route)))) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/";
-    redirectUrl.searchParams.set("auth_error", "Account suspended.");
     return NextResponse.redirect(redirectUrl);
   }
 

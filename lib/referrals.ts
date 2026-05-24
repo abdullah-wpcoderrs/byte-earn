@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
-import { profiles } from "@/db/schema";
-import { getDb } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
 
 const REFERRAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -15,14 +13,19 @@ export function generateReferralCode(length = 8) {
 }
 
 export async function createUniqueReferralCode() {
-  const db = getDb();
+  const supabase = await createClient();
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const referralCode = generateReferralCode();
-    const existing = await db.query.profiles.findFirst({
-      where: eq(profiles.referralCode, referralCode),
-      columns: { id: true },
-    });
+    const { data: existing, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("referral_code", referralCode)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
 
     if (!existing) {
       return referralCode;

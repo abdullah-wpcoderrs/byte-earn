@@ -17,11 +17,19 @@ export default async function OnboardingPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("status, referral_code, display_name, bank_name, account_number, account_name")
+    .select("role, status, referral_code, display_name, bank_name, account_number, account_name")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile || profile.status === "pending_payment") {
+  if (!profile) {
+    redirect("/activate");
+  }
+
+  if (profile.role === "admin") {
+    redirect("/admin");
+  }
+
+  if (profile.status === "pending_payment") {
     redirect("/activate");
   }
 
@@ -74,7 +82,7 @@ export default async function OnboardingPage() {
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Email address</span>
             <input
-              className="min-h-11 cursor-not-allowed border border-white/10 bg-white/[0.035] px-3 text-slate-400 outline-none"
+              className="min-h-9 cursor-not-allowed border border-white/10 bg-white/[0.035] px-2.5 text-slate-400 outline-none"
               disabled
               readOnly
               type="email"
@@ -85,7 +93,7 @@ export default async function OnboardingPage() {
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Display name</span>
             <input
-              className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+              className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
               defaultValue={profile.display_name ?? ""}
               name="displayName"
               placeholder="Amina Kareem"
@@ -96,7 +104,7 @@ export default async function OnboardingPage() {
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Bank name</span>
             <input
-              className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+              className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
               defaultValue={profile.bank_name ?? ""}
               name="bankName"
               placeholder="Access Bank"
@@ -107,7 +115,7 @@ export default async function OnboardingPage() {
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Account number</span>
             <input
-              className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+              className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
               defaultValue={profile.account_number ?? ""}
               name="accountNumber"
               placeholder="0123456789"
@@ -118,7 +126,7 @@ export default async function OnboardingPage() {
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Account name</span>
             <input
-              className="min-h-11 border border-white/10 bg-white/[0.055] px-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+              className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
               defaultValue={profile.account_name ?? ""}
               name="accountName"
               placeholder="Amina Kareem"

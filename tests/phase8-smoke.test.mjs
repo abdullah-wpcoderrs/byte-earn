@@ -47,6 +47,34 @@ test("referral tracking and admin actions have rate limits", () => {
   assert.match(adminActions, /admin:moderation/);
 });
 
+test("admins bypass payment and onboarding gates", () => {
+  const middleware = read("lib/supabase/middleware.ts");
+  const authActions = read("app/auth/actions.ts");
+  const activatePage = read("app/activate/page.tsx");
+  const onboardingPage = read("app/onboarding/page.tsx");
+  const paystackInitialize = read("app/api/paystack/initialize/route.ts");
+
+  assert.match(middleware, /const isAdmin = profile\.role === "admin"/);
+  assert.match(middleware, /isRoute\(pathname, "\/activate"\) \|\| isRoute\(pathname, "\/onboarding"\)/);
+  assert.match(authActions, /profile\.role === "admin"/);
+  assert.match(activatePage, /profile\.role === "admin"/);
+  assert.match(onboardingPage, /profile\.role === "admin"/);
+  assert.match(paystackInitialize, /profile\.role === "admin"/);
+});
+
+test("admin user creation uses server-only Supabase admin auth", () => {
+  const adminClient = read("lib/supabase/admin.ts");
+  const adminActions = read("app/admin/actions.ts");
+  const usersTable = read("app/admin/users/user-management-table.tsx");
+
+  assert.match(adminClient, /import "server-only"/);
+  assert.match(adminClient, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(adminActions, /auth\.admin\.createUser/);
+  assert.match(adminActions, /auth\.admin\.updateUserById/);
+  assert.match(adminActions, /public\.profiles|from\("profiles"\)/);
+  assert.match(usersTable, /createAdminUserAction/);
+});
+
 test("hardening migration includes audit, RLS, and storage policies", () => {
   const migration = read("db/migrations/0007_phase8_hardening.sql");
 
