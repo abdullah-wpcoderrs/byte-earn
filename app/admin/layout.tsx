@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { BadgeCheck, Bell, Coins, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { requireAdmin } from "@/lib/admin";
 import { getCurrentUserNotifications } from "@/lib/notifications";
@@ -19,6 +20,7 @@ const adminNav = [
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const admin = await requireAdmin();
   const notificationData = await getCurrentUserNotifications();
+  const adminLabel = admin.email ?? admin.displayName ?? "Protected console";
 
   return (
     <div className="min-h-screen text-[11px] text-white lg:pl-[284px]">
@@ -29,7 +31,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           </div>
           <div>
             <p className="text-base font-semibold leading-none">byte-earn admin</p>
-            <p className="text-muted">{admin.email ?? admin.displayName ?? "Protected console"}</p>
+            <p className="text-muted">{adminLabel}</p>
           </div>
         </a>
         <nav className="mt-8 flex flex-1 flex-col gap-2">
@@ -51,29 +53,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <NotificationBell notifications={notificationData.notifications} unreadCount={notificationData.unreadCount} />
         </div>
       </aside>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#08101d]/92 px-4 py-3 backdrop-blur-xl lg:hidden">
-        <div className="flex items-center justify-between gap-3">
-          <a className="text-base font-semibold" href="/admin">
-            byte-earn admin
-          </a>
-          <a className="rounded-[5px] border border-white/10 px-3 py-2 font-semibold text-cyan-100" href="/feed">
-            App
-          </a>
-        </div>
-        <nav className="mt-3 grid grid-cols-4 gap-1 sm:grid-cols-8">
-          {adminNav.map((item) => (
-            <a
-              aria-label={item.label}
-              className="flex min-h-11 items-center justify-center rounded-[5px] bg-white/[0.055] text-slate-300"
-              href={item.href}
-              key={item.href}
-              title={item.label}
-            >
-              <item.icon className="size-4" />
-            </a>
-          ))}
-        </nav>
-      </header>
+      <AdminMobileNav adminLabel={adminLabel} notifications={notificationData.notifications} unreadCount={notificationData.unreadCount} />
       <main className="mx-auto w-full max-w-7xl px-4 pb-10 pt-4 sm:px-6 lg:px-8">{children}</main>
     </div>
   );

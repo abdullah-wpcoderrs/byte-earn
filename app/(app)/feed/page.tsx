@@ -1,10 +1,16 @@
-import { Upload } from "lucide-react";
 import { FeedCard } from "@/components/feed/feed-card";
+import { FeedUploadButton } from "@/components/feed/feed-upload-button";
 import { getFeedPosts } from "@/lib/posts";
 
 export const dynamic = "force-dynamic";
 
-export default async function FeedPage() {
+type FeedPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function FeedPage({ searchParams }: FeedPageProps) {
+  const params = await searchParams;
+  const uploadOpen = params?.upload === "1";
   const feedPosts = await getFeedPosts();
 
   return (
@@ -24,6 +30,8 @@ export default async function FeedPage() {
         </div>
       </section>
 
+      <FeedUploadButton defaultOpen={uploadOpen} compact />
+
       <aside className="hidden gap-4 lg:grid">
         <section className="glass p-4">
           <div className="flex items-center justify-between gap-3">
@@ -31,10 +39,7 @@ export default async function FeedPage() {
               <h1 className="text-base font-semibold">Creator feed</h1>
               <p className="mt-1 leading-5 text-muted">Image, video, and image plus audio posts share one vertical surface.</p>
             </div>
-            <a className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-2.5 font-semibold text-slate-950" href="/upload">
-              <Upload className="size-4" />
-              Upload
-            </a>
+            <FeedUploadButton />
           </div>
         </section>
 

@@ -47,7 +47,7 @@ export default function AuthGatewayPage() {
   );
 
   return (
-    <main className="min-h-screen overflow-hidden text-[11px] text-white">
+    <main className="min-h-screen text-[11px] text-white lg:overflow-hidden">
       <section className="grid min-h-screen lg:grid-cols-[1.02fr_0.98fr]">
         <div className="relative flex min-h-[48svh] flex-col justify-between overflow-hidden border-b border-white/10 px-4 py-5 sm:px-6 lg:min-h-screen lg:border-b-0 lg:border-r lg:px-10 lg:py-8">
           <div
@@ -88,7 +88,7 @@ export default function AuthGatewayPage() {
           </div>
         </div>
 
-        <div className="flex min-h-[52svh] items-start justify-center overflow-y-auto px-4 py-6 sm:px-6 lg:h-screen lg:min-h-screen lg:px-10">
+        <div className="flex items-start justify-center px-4 py-6 sm:px-6 lg:h-screen lg:min-h-screen lg:overflow-y-auto lg:px-10">
           <div className="w-full max-w-[440px] lg:sticky lg:top-6">
             <div className="glass-strong p-4 sm:p-5">
               <div className="mb-4 grid grid-cols-2 gap-2 rounded-[5px] border border-white/10 bg-white/[0.045] p-1">

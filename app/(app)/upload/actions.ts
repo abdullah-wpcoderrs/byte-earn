@@ -23,9 +23,25 @@ function optionalFile(formData: FormData, key: string) {
   return value instanceof File && value.size > 0 ? value : null;
 }
 
-function assertFile(file: File | null, message: string) {
+function uploadTarget(formData: FormData) {
+  return formData.get("returnTo") === "feed" ? "feed" : "upload";
+}
+
+function targetUrl(target: "feed" | "upload", params: Record<string, string>) {
+  const searchParams = new URLSearchParams(params);
+  if (target === "feed") {
+    searchParams.set("upload", "1");
+  }
+  return `/${target}?${searchParams.toString()}`;
+}
+
+function redirectWithError(target: "feed" | "upload", message: string): never {
+  redirect(targetUrl(target, { error: message }));
+}
+
+function assertFile(file: File | null, target: "feed" | "upload", message: string): File {
   if (!file) {
-    redirect(`/upload?error=${encodeURIComponent(message)}`);
+    redirectWithError(target, message);
   }
   return file;
 }
@@ -38,10 +54,12 @@ function extensionFor(file: File) {
 async function uploadPublicFile({
   bucket,
   file,
+  target,
   userId,
 }: {
   bucket: "post-audio" | "post-images" | "post-videos";
   file: File;
+  target: "feed" | "upload";
   userId: string;
 }) {
   const supabase = await createClient();
@@ -52,7 +70,7 @@ async function uploadPublicFile({
   });
 
   if (error) {
-    redirect(`/upload?error=${encodeURIComponent(error.message)}`);
+    redirectWithError(target, error.message);
   }
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
@@ -60,6 +78,7 @@ async function uploadPublicFile({
 }
 
 export async function createPostAction(formData: FormData) {
+  const target = uploadTarget(formData);
   const supabase = await createClient();
   const {
     data: { user },
@@ -75,17 +94,16 @@ export async function createPostAction(formData: FormData) {
   const caption = requiredString(formData, "caption").slice(0, 600);
 
   if (!postTypes.has(type)) {
-    redirect("/upload?error=invalid_post_type");
+    redirectWithError(target, "invalid_post_type");
   }
 
-  const mediaFile = assertFile(optionalFile(formData, "mediaFile"), "Media file is required.");
+  const mediaFile = assertFile(optionalFile(formData, "mediaFile"), target, "media_required");
   const audioFile = optionalFile(formData, "audioFile");
   const mediaBucket = type === "video_text" ? "post-videos" : "post-images";
-  const mediaUrl = await uploadPublicFile({ bucket: mediaBucket, file: mediaFile, userId: user.id });
-  const audioUrl =
-    type === "image_audio"
-      ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, "Audio file is required for image plus MP3 posts."), userId: user.id })
-      : null;
+  const mediaUrl = await uploadPublicFile({ bucket: mediaBucket, file: mediaFile, target, userId: user.id });
+  const audioUrl = type === "image_audio"
+    ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, target, "audio_required"), target, userId: user.id })
+    : null;
   const settings = await getPlatformSettings();
   const status = settings.post_approval_required ? "pending" : "published";
   const { data: post, error: postError } = await supabase
@@ -102,7 +120,7 @@ export async function createPostAction(formData: FormData) {
     .maybeSingle();
 
   if (postError) {
-    redirect(`/upload?error=${encodeURIComponent(postError.message)}`);
+    redirectWithError(target, postError.message);
   }
 
   await writeAuditLog({
@@ -113,5 +131,6 @@ export async function createPostAction(formData: FormData) {
     metadata: { status, type },
   });
 
-  redirect(`/upload?updated=${status === "published" ? "post_published" : "post_submitted"}`);
+  const updated = status === "published" ? "post_published" : "post_submitted";
+  redirect(target === "feed" ? `/feed?post=${post?.id ?? ""}&updated=${updated}` : `/upload?updated=${updated}`);
 }

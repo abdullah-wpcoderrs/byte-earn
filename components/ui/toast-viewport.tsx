@@ -50,6 +50,8 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
       invalid_post_type: { body: "Choose one of the supported post types.", title: "Post not submitted" },
       invalid_reward: { body: "Choose a valid reward and non-negative credit amount.", title: "Reward not saved" },
       invalid_transition: { body: "This withdrawal cannot move to that state.", title: "Invalid review state" },
+      audio_required: { body: "Add an audio file for image plus MP3 posts.", title: "Audio file required" },
+      media_required: { body: "Add a media file before submitting your post.", title: "Media file required" },
       missing_reward: { body: "This reward rule no longer exists.", title: "Reward not found" },
       invalid_withdrawal: { body: "This withdrawal id is invalid.", title: "Review failed" },
       missing_post: { body: "This post no longer exists.", title: "Post not found" },

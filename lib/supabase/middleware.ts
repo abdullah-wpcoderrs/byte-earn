@@ -15,10 +15,39 @@ function isRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
+function hasSupabaseAuthCookie(request: NextRequest) {
+  return request.cookies.getAll().some(({ name }) => /^sb-.+-auth-token(?:\.\d+)?$/.test(name));
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request,
   });
+  const pathname = request.nextUrl.pathname;
+  const isProtectedRoute = protectedRoutes.some((route) => isRoute(pathname, route));
+  const isAdminRoute = isRoute(pathname, "/admin");
+  const touchesAccountFlow =
+    pathname === "/" ||
+    isRoute(pathname, "/activate") ||
+    isRoute(pathname, "/onboarding") ||
+    isAdminRoute ||
+    isProtectedRoute;
+
+  if (!touchesAccountFlow) {
+    return response;
+  }
+
+  if (!hasSupabaseAuthCookie(request)) {
+    if (isAdminRoute || isProtectedRoute) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/";
+      redirectUrl.searchParams.set("auth", "required");
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    return response;
+  }
+
   const supabaseUrl = getSupabaseUrl();
   const supabasePublishableKey = getSupabasePublishableKey();
 
@@ -45,29 +74,18 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const pathname = request.nextUrl.pathname;
-  const touchesAccountFlow =
-    pathname === "/" ||
-    isRoute(pathname, "/activate") ||
-    isRoute(pathname, "/onboarding") ||
-    isRoute(pathname, "/admin") ||
-    protectedRoutes.some((route) => isRoute(pathname, route));
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    if (isRoute(pathname, "/admin") || protectedRoutes.some((route) => isRoute(pathname, route))) {
+    if (isAdminRoute || isProtectedRoute) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/";
       redirectUrl.searchParams.set("auth", "required");
       return NextResponse.redirect(redirectUrl);
     }
 
-    return response;
-  }
-
-  if (!touchesAccountFlow) {
     return response;
   }
 
@@ -118,7 +136,7 @@ export async function updateSession(request: NextRequest) {
 
   if (
     platformSettings?.under_construction &&
-    protectedRoutes.some((route) => isRoute(pathname, route)) &&
+    isProtectedRoute &&
     !isRoute(pathname, "/under-construction")
   ) {
     const redirectUrl = request.nextUrl.clone();
@@ -134,7 +152,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (isRoute(pathname, "/admin")) {
+  if (isAdminRoute) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/feed";
     redirectUrl.searchParams.set("admin", "forbidden");
