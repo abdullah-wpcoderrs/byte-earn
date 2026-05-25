@@ -108,6 +108,10 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
     messages.push({ body: "Sign in to continue.", id: "auth:required", title: "Session required", tone: "info" });
   }
 
+  if (auth === "logged_out") {
+    messages.push({ body: "You have been signed out.", id: "auth:logged_out", title: "Signed out", tone: "success" });
+  }
+
   return messages;
 }
 

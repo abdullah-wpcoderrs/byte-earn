@@ -129,3 +129,9 @@ export async function signInAction(formData: FormData) {
 
   redirect("/feed?updated=login");
 }
+
+export async function signOutAction() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/?auth=logged_out");
+}

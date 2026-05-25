@@ -28,6 +28,16 @@ function numberValue(formData: FormData, key: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function strictIntegerValue(formData: FormData, key: string) {
+  const raw = textValue(formData, key);
+  return /^\d+$/.test(raw) ? Number(raw) : null;
+}
+
+function strictDecimalValue(formData: FormData, key: string) {
+  const raw = textValue(formData, key);
+  return /^\d+(\.\d{1,4})?$/.test(raw) ? Number(raw) : null;
+}
+
 function fileValue(formData: FormData, key: string) {
   const value = formData.get(key);
   return value instanceof File && value.size > 0 ? value : null;
@@ -440,13 +450,19 @@ export async function updateRewardRuleAction(formData: FormData) {
   const admin = await requireAdmin();
   assertRateLimit(`admin:reward-rule:${admin.id}`, 30, 10 * 60 * 1000);
   const ruleId = textValue(formData, "ruleId");
-  const credits = intValue(formData, "credits");
-  const minCreditsPerAction = Math.max(0, intValue(formData, "minCreditsPerAction"));
-  const maxCreditsInput = textValue(formData, "maxCreditsPerAction");
-  const maxCreditsPerAction = maxCreditsInput ? Math.max(0, intValue(formData, "maxCreditsPerAction")) : null;
+  const credits = strictIntegerValue(formData, "credits");
+  const minCreditsPerAction = strictIntegerValue(formData, "minCreditsPerAction");
+  const hasNoMaximum = formData.get("maxCreditsUnlimited") === "on";
+  const maxCreditsPerAction = hasNoMaximum ? null : strictIntegerValue(formData, "maxCreditsPerAction");
   const enabled = formData.get("enabled") === "on";
 
-  if (!uuidPattern.test(ruleId) || credits < 0 || (maxCreditsPerAction !== null && maxCreditsPerAction < minCreditsPerAction)) {
+  if (
+    !uuidPattern.test(ruleId) ||
+    credits === null ||
+    minCreditsPerAction === null ||
+    (!hasNoMaximum && maxCreditsPerAction === null) ||
+    (maxCreditsPerAction !== null && maxCreditsPerAction < minCreditsPerAction)
+  ) {
     redirect("/admin/rewards?error=invalid_reward");
   }
 
@@ -490,11 +506,11 @@ export async function updateRewardRuleAction(formData: FormData) {
 export async function updateFinanceSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
   assertRateLimit(`admin:finance-settings:${admin.id}`, 20, 10 * 60 * 1000);
-  const creditsPerUnit = intValue(formData, "creditsPerUnit");
-  const usdPerUnit = numberValue(formData, "usdPerUnit");
-  const ngnPerUsd = numberValue(formData, "ngnPerUsd");
+  const creditsPerUnit = strictIntegerValue(formData, "creditsPerUnit");
+  const usdPerUnit = strictDecimalValue(formData, "usdPerUnit");
+  const ngnPerUsd = strictDecimalValue(formData, "ngnPerUsd");
 
-  if (creditsPerUnit <= 0 || usdPerUnit <= 0 || ngnPerUsd <= 0) {
+  if (creditsPerUnit === null || usdPerUnit === null || ngnPerUsd === null || creditsPerUnit <= 0 || usdPerUnit <= 0 || ngnPerUsd <= 0) {
     redirect("/admin/rewards?error=invalid_finance_settings");
   }
 

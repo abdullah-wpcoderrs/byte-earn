@@ -1,5 +1,7 @@
-import { Link2, SquarePlus } from "lucide-react";
+import { Link2, LogOut, SquarePlus } from "lucide-react";
 import { redirect } from "next/navigation";
+import { signOutAction } from "@/app/auth/actions";
+import { Button } from "@/components/ui/button";
 import { PostGrid } from "@/components/profile/post-grid";
 import { ReferralShareButton } from "@/components/share/referral-share-button";
 import { getOwnProfileData } from "@/lib/posts";
@@ -28,10 +30,17 @@ export default async function ProfilePage() {
               </p>
             </div>
           </div>
-          <a className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950" href="/upload">
-            <SquarePlus className="size-4" />
-            New post
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <a className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950" href="/upload">
+              <SquarePlus className="size-4" />
+              New post
+            </a>
+            <form action={signOutAction}>
+              <Button icon={<LogOut className="size-4" />} type="submit" variant="danger">
+                Logout
+              </Button>
+            </form>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-2 md:grid-cols-[1fr_auto] md:items-center">

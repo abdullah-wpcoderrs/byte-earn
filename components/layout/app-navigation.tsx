@@ -4,6 +4,7 @@ import {
   Clapperboard,
   Home,
   LayoutDashboard,
+  LogOut,
   Sparkles,
   SquarePlus,
   Trophy,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
+import { signOutAction } from "@/app/auth/actions";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import type { NotificationItem } from "@/lib/notifications";
 
@@ -31,9 +33,9 @@ type NavigationProps = {
 export const appNavigation: NavItem[] = [
   { label: "Feed", href: "/feed", icon: Home },
   { label: "Tasks", href: "/tasks", icon: Clapperboard },
+  { label: "Upload", href: "/upload", icon: SquarePlus },
   { label: "Wallet", href: "/wallet", icon: Wallet },
   { label: "Leaders", href: "/leaderboard", icon: Trophy },
-  { label: "Upload", href: "/upload", icon: SquarePlus },
   { label: "Profile", href: "/profile", icon: UserRound },
   { label: "Admin", href: "/admin", icon: LayoutDashboard, adminOnly: true },
 ];
@@ -87,7 +89,19 @@ export function DesktopSidebar({ isAdmin, notifications = [], unreadCount = 0 }:
           );
         })}
       </nav>
-      <NotificationBell notifications={notifications} unreadCount={unreadCount} />
+      <div className="flex items-center gap-2">
+        <NotificationBell notifications={notifications} unreadCount={unreadCount} />
+        <form action={signOutAction}>
+          <button
+            aria-label="Log out"
+            className="grid size-10 place-items-center rounded-[5px] border border-rose-300/25 bg-rose-400/10 text-rose-100 transition hover:bg-rose-400/16 hover:text-rose-50"
+            title="Log out"
+            type="submit"
+          >
+            <LogOut className="size-4" />
+          </button>
+        </form>
+      </div>
     </aside>
   );
 }

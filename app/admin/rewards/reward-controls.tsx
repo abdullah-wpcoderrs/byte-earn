@@ -1,13 +1,12 @@
 "use client";
 
 import { Coins, Pencil, Save, Settings2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   updateFinanceSettingsAction,
   updateRewardRuleAction,
 } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
-import { TextInput } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import type { FinanceSettings } from "@/lib/finance-settings";
 import { formatNaira, formatUsd, getNgnPerCredit, getUsdPerCredit } from "@/lib/money";
@@ -106,33 +105,132 @@ export function RewardControls({ financeSettings, rules }: RewardControlsProps) 
       </section>
 
       <Modal onClose={() => setSelectedRule(null)} open={Boolean(selectedRule)} title={selectedRule ? `Edit ${selectedRule.label}` : "Edit reward"}>
-        {selectedRule ? (
-          <form action={updateRewardRuleAction} className="grid gap-3">
-            <input name="ruleId" type="hidden" value={selectedRule.id} />
-            <TextInput defaultValue={selectedRule.credits} inputMode="numeric" label="Default credits" name="credits" />
-            <TextInput defaultValue={selectedRule.minCreditsPerAction} inputMode="numeric" label="Minimum credits per action" name="minCreditsPerAction" />
-            <TextInput defaultValue={selectedRule.maxCreditsPerAction ?? ""} inputMode="numeric" label="Maximum credits per action" name="maxCreditsPerAction" placeholder="No cap" />
-            <label className="flex min-h-9 items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5">
-              <span className="font-medium text-slate-200">Enabled</span>
-              <input className="size-4 accent-cyan-300" defaultChecked={selectedRule.enabled} name="enabled" type="checkbox" />
-            </label>
-            <Button icon={<Save className="size-4" />} type="submit">
-              Save reward
-            </Button>
-          </form>
-        ) : null}
+        {selectedRule ? <RewardRuleForm rule={selectedRule} /> : null}
       </Modal>
 
       <Modal onClose={() => setFinanceOpen(false)} open={financeOpen} title="Edit credit conversion">
-        <form action={updateFinanceSettingsAction} className="grid gap-3">
-          <TextInput defaultValue={financeSettings.creditsPerUnit} inputMode="numeric" label="Credits per unit" name="creditsPerUnit" />
-          <TextInput defaultValue={financeSettings.usdPerUnit} inputMode="decimal" label="USD per unit" name="usdPerUnit" step="0.0001" type="number" />
-          <TextInput defaultValue={financeSettings.ngnPerUsd} inputMode="decimal" label="NGN per USD" name="ngnPerUsd" step="0.0001" type="number" />
-          <Button icon={<Save className="size-4" />} type="submit">
-            Save conversion rate
-          </Button>
-        </form>
+        <FinanceSettingsForm financeSettings={financeSettings} />
       </Modal>
     </>
+  );
+}
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function decimalValue(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const [whole, ...rest] = cleaned.split(".");
+  return rest.length > 0 ? `${whole}.${rest.join("").slice(0, 4)}` : whole;
+}
+
+function NumericField({
+  disabled,
+  label,
+  name,
+  onChange,
+  value,
+}: {
+  disabled?: boolean;
+  label: string;
+  name: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="font-medium text-slate-200">{label}</span>
+      <input
+        autoComplete="off"
+        className="min-h-9 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55 disabled:cursor-not-allowed disabled:opacity-45"
+        disabled={disabled}
+        inputMode="numeric"
+        name={name}
+        onChange={(event) => onChange(onlyDigits(event.target.value))}
+        pattern="[0-9]*"
+        type="text"
+        value={value}
+      />
+    </label>
+  );
+}
+
+function DecimalField({
+  label,
+  name,
+  onChange,
+  value,
+}: {
+  label: string;
+  name: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="font-medium text-slate-200">{label}</span>
+      <input
+        autoComplete="off"
+        className="min-h-9 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+        inputMode="decimal"
+        name={name}
+        onChange={(event) => onChange(decimalValue(event.target.value))}
+        pattern="[0-9]+(\\.[0-9]{1,4})?"
+        type="text"
+        value={value}
+      />
+    </label>
+  );
+}
+
+function RewardRuleForm({ rule }: { rule: RewardRule }) {
+  const [credits, setCredits] = useState(String(rule.credits));
+  const [minCredits, setMinCredits] = useState(String(rule.minCreditsPerAction));
+  const [maxCredits, setMaxCredits] = useState(rule.maxCreditsPerAction === null ? "" : String(rule.maxCreditsPerAction));
+  const [hasNoMaximum, setHasNoMaximum] = useState(rule.maxCreditsPerAction === null);
+
+  useEffect(() => {
+    setCredits(String(rule.credits));
+    setMinCredits(String(rule.minCreditsPerAction));
+    setMaxCredits(rule.maxCreditsPerAction === null ? "" : String(rule.maxCreditsPerAction));
+    setHasNoMaximum(rule.maxCreditsPerAction === null);
+  }, [rule]);
+
+  return (
+    <form action={updateRewardRuleAction} className="grid gap-3">
+      <input name="ruleId" type="hidden" value={rule.id} />
+      <NumericField label="Default credits" name="credits" onChange={setCredits} value={credits} />
+      <NumericField label="Minimum credits per action" name="minCreditsPerAction" onChange={setMinCredits} value={minCredits} />
+      <NumericField disabled={hasNoMaximum} label="Maximum credits per action" name="maxCreditsPerAction" onChange={setMaxCredits} value={hasNoMaximum ? "" : maxCredits} />
+      <label className="flex min-h-9 items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5">
+        <span className="font-medium text-slate-200">No maximum limit</span>
+        <input className="size-4 accent-cyan-300" checked={hasNoMaximum} name="maxCreditsUnlimited" onChange={(event) => setHasNoMaximum(event.target.checked)} type="checkbox" />
+      </label>
+      <label className="flex min-h-9 items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5">
+        <span className="font-medium text-slate-200">Enabled</span>
+        <input className="size-4 accent-cyan-300" defaultChecked={rule.enabled} name="enabled" type="checkbox" />
+      </label>
+      <Button icon={<Save className="size-4" />} type="submit">
+        Save reward
+      </Button>
+    </form>
+  );
+}
+
+function FinanceSettingsForm({ financeSettings }: { financeSettings: FinanceSettings }) {
+  const [creditsPerUnit, setCreditsPerUnit] = useState(String(financeSettings.creditsPerUnit));
+  const [usdPerUnit, setUsdPerUnit] = useState(String(financeSettings.usdPerUnit));
+  const [ngnPerUsd, setNgnPerUsd] = useState(String(financeSettings.ngnPerUsd));
+
+  return (
+    <form action={updateFinanceSettingsAction} className="grid gap-3">
+      <NumericField label="Credits per unit" name="creditsPerUnit" onChange={setCreditsPerUnit} value={creditsPerUnit} />
+      <DecimalField label="USD per unit" name="usdPerUnit" onChange={setUsdPerUnit} value={usdPerUnit} />
+      <DecimalField label="NGN per USD" name="ngnPerUsd" onChange={setNgnPerUsd} value={ngnPerUsd} />
+      <Button icon={<Save className="size-4" />} type="submit">
+        Save conversion rate
+      </Button>
+    </form>
   );
 }
