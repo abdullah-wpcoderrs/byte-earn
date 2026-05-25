@@ -42,7 +42,19 @@ export default async function ProfilePage() {
             </div>
             <p className="break-all text-slate-300">{referralUrl}</p>
           </div>
-          <ReferralShareButton className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.065] px-3 font-semibold text-slate-100" label="Copy" referralCode={data.profile.referralCode} />
+          <div className="grid grid-cols-2 gap-2 md:flex">
+            <ReferralShareButton
+              action="copy-url"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.065] px-3 font-semibold text-slate-100"
+              label="Copy"
+              referralCode={data.profile.referralCode}
+            />
+            <ReferralShareButton
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950"
+              label="Share"
+              referralCode={data.profile.referralCode}
+            />
+          </div>
         </div>
       </section>
 

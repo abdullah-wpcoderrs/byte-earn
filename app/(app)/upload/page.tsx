@@ -10,7 +10,7 @@ const uploadTypes = [
 export default function UploadPage() {
   return (
     <div className="grid gap-4 lg:grid-cols-[0.78fr_1.22fr]">
-      <aside className="glass p-4">
+      <aside className="order-2 glass p-4 lg:order-1">
         <h1 className="text-base font-semibold">Upload post</h1>
         <p className="mt-2 leading-5 text-muted">Create one of the three approved media post formats.</p>
 
@@ -25,7 +25,7 @@ export default function UploadPage() {
         </div>
       </aside>
 
-      <form action={createPostAction} className="glass-strong grid gap-3 p-4">
+      <form action={createPostAction} className="order-1 glass-strong grid gap-3 p-4 lg:order-2">
         <div className="mb-2 flex items-center gap-2 text-cyan-100">
           <UploadCloud className="size-4" />
           <span className="font-semibold">Media details</span>

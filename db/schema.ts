@@ -41,6 +41,7 @@ export const signupPaymentStatus = pgEnum("signup_payment_status", [
   "abandoned",
 ]);
 export const taskStatus = pgEnum("task_status", ["draft", "active", "paused", "archived"]);
+export const referralAttributionStatus = pgEnum("referral_attribution_status", ["pending", "qualified", "rejected"]);
 
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(),
@@ -81,6 +82,10 @@ export const referralAttributions = pgTable("referral_attributions", {
   referredProfileId: uuid("referred_profile_id").notNull().references(() => profiles.id),
   referralCode: text("referral_code").notNull(),
   source: text("source").notNull().default("signup"),
+  status: referralAttributionStatus("status").notNull().default("pending"),
+  qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
+  rewardCredits: integer("reward_credits").notNull().default(0),
+  rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -165,12 +170,41 @@ export const taskProgress = pgTable("task_progress", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const rewardRules = pgTable("reward_rules", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  action: text("action").notNull().unique(),
+  label: text("label").notNull(),
+  credits: integer("credits").notNull().default(0),
+  enabled: boolean("enabled").notNull().default(true),
+  description: text("description").notNull().default(""),
+  minCreditsPerAction: integer("min_credits_per_action").notNull().default(0),
+  maxCreditsPerAction: integer("max_credits_per_action"),
+  updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const financeSettings = pgTable("finance_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  creditsPerUnit: integer("credits_per_unit").notNull().default(100),
+  usdPerUnit: numeric("usd_per_unit", { precision: 12, scale: 4 }).notNull().default("0.5000"),
+  ngnPerUsd: numeric("ngn_per_usd", { precision: 12, scale: 4 }).notNull().default("1000.0000"),
+  active: boolean("active").notNull().default(true),
+  updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const withdrawals = pgTable("withdrawals", {
   id: uuid("id").defaultRandom().primaryKey(),
   profileId: uuid("profile_id").notNull().references(() => profiles.id),
   status: withdrawalStatus("status").notNull().default("pending"),
   amountCredits: integer("amount_credits").notNull(),
   amountNaira: numeric("amount_naira", { precision: 12, scale: 2 }).notNull(),
+  creditsPerUnitSnapshot: integer("credits_per_unit_snapshot"),
+  usdPerUnitSnapshot: numeric("usd_per_unit_snapshot", { precision: 12, scale: 4 }),
+  ngnPerUsdSnapshot: numeric("ngn_per_usd_snapshot", { precision: 12, scale: 4 }),
+  ngnPerCreditSnapshot: numeric("ngn_per_credit_snapshot", { precision: 12, scale: 4 }),
   bankName: text("bank_name").notNull(),
   accountNumber: text("account_number").notNull(),
   accountName: text("account_name").notNull(),

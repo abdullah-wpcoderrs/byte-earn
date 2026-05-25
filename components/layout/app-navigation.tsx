@@ -92,6 +92,34 @@ export function DesktopSidebar({ isAdmin, notifications = [], unreadCount = 0 }:
   );
 }
 
+export function MobileHeader({ notifications = [], unreadCount = 0 }: NavigationProps) {
+  const pathname = usePathname();
+  const profileActive = isActive(pathname, "/profile");
+
+  return (
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#08101d]/92 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <div className="flex items-center justify-between gap-4">
+        <a aria-label="byte-earn home" className="min-w-0" href="/feed">
+          <AppBrand />
+        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          <NotificationBell notifications={notifications} panelPlacement="mobile-header" unreadCount={unreadCount} />
+          <a
+            aria-current={profileActive ? "page" : undefined}
+            aria-label="Open profile"
+            className={`grid size-10 place-items-center rounded-[5px] border text-cyan-100 transition ${
+              profileActive ? "pointer-events-none border-cyan-200/25 bg-cyan-300/12" : "border-white/10 bg-white/[0.055] hover:bg-white/10"
+            }`}
+            href="/profile"
+          >
+            <UserRound className="size-4" />
+          </a>
+        </div>
+      </div>
+    </header>
+  );
+}
+
 export function MobileBottomNav({ isAdmin }: NavigationProps) {
   const pathname = usePathname();
   const items = visibleNavigation(isAdmin).filter((item) => item.href !== "/admin").slice(0, 5);

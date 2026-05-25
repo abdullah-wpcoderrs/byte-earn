@@ -9,7 +9,7 @@ export default async function FeedPage() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(360px,520px)_minmax(240px,1fr)] lg:items-start">
-      <section className="glass-strong h-[calc(100svh-112px)] min-h-[620px] overflow-hidden p-2 lg:sticky lg:top-4 lg:h-[calc(100svh-32px)]">
+      <section className="min-h-[calc(100svh-160px)] overflow-hidden lg:sticky lg:top-4 lg:h-[calc(100svh-32px)] lg:min-h-[620px] lg:p-2 lg:glass-strong">
         <div className="app-scrollbar h-full snap-y snap-mandatory overflow-y-auto">
           <div className="grid gap-3">
             {feedPosts.map((post) => (
@@ -24,7 +24,7 @@ export default async function FeedPage() {
         </div>
       </section>
 
-      <aside className="grid gap-4">
+      <aside className="hidden gap-4 lg:grid">
         <section className="glass p-4">
           <div className="flex items-center justify-between gap-3">
             <div>

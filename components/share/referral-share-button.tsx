@@ -1,41 +1,79 @@
 "use client";
 
-import { Check, Send } from "lucide-react";
+import { Check, Clipboard, Send } from "lucide-react";
 import { useState } from "react";
-import { buildShareCaption } from "@/lib/share";
+import { buildReferralUrl, buildShareCaption } from "@/lib/share";
 
 type ReferralShareButtonProps = {
+  action?: "copy-url" | "share";
   className?: string;
   label?: string;
   referralCode?: string;
 };
 
-export function ReferralShareButton({ className, label = "Share", referralCode = "BEDEMO24" }: ReferralShareButtonProps) {
-  const [copied, setCopied] = useState(false);
-
-  async function handleShare() {
-    const text = buildShareCaption(referralCode);
-
+async function copyToClipboard(text: string) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2200);
+      return;
     } catch {
-      setCopied(false);
+      // Fall back below for browsers that expose the Clipboard API but deny it.
     }
+  }
 
-    if (navigator.share) {
-      try {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) {
+      throw new Error("Clipboard copy failed.");
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
+export function ReferralShareButton({ action = "share", className, label = "Share", referralCode = "BEDEMO24" }: ReferralShareButtonProps) {
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+
+  async function handleShare() {
+    const referralUrl = buildReferralUrl(referralCode);
+    const text = action === "copy-url" ? referralUrl : buildShareCaption(referralCode);
+
+    setStatus("idle");
+
+    try {
+      if (action === "share" && navigator.share) {
         await navigator.share({
           text,
           title: "Join me on byte-earn",
-          url: text.match(/https?:\/\/\S+/)?.[0],
+          url: referralUrl,
         });
-      } catch {
-        // The user can cancel the native share sheet without it being an app error.
+      } else {
+        await copyToClipboard(text);
       }
+
+      setStatus("copied");
+      window.setTimeout(() => setStatus("idle"), 2200);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      setStatus("failed");
+      window.setTimeout(() => setStatus("idle"), 2200);
     }
   }
+
+  const currentLabel = status === "copied" ? (action === "share" ? "Shared" : "Copied") : status === "failed" ? "Try again" : label;
 
   return (
     <button
@@ -46,8 +84,8 @@ export function ReferralShareButton({ className, label = "Share", referralCode =
       onClick={handleShare}
       type="button"
     >
-      {copied ? <Check className="size-4" /> : <Send className="size-4" />}
-      {copied ? "Copied" : label}
+      {status === "copied" ? <Check className="size-4" /> : action === "copy-url" ? <Clipboard className="size-4" /> : <Send className="size-4" />}
+      {currentLabel}
     </button>
   );
 }

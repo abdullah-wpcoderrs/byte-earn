@@ -50,8 +50,11 @@ export default function AuthGatewayPage() {
     <main className="min-h-screen overflow-hidden text-[11px] text-white">
       <section className="grid min-h-screen lg:grid-cols-[1.02fr_0.98fr]">
         <div className="relative flex min-h-[48svh] flex-col justify-between overflow-hidden border-b border-white/10 px-4 py-5 sm:px-6 lg:min-h-screen lg:border-b-0 lg:border-r lg:px-10 lg:py-8">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(95,215,255,0.26),transparent_20rem),linear-gradient(150deg,rgba(10,14,26,0.42),rgba(3,7,18,0.94)_60%),url('https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center" />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,14,26,0.22),rgba(10,14,26,0.98))]" />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(95,215,255,0.26),transparent_20rem),linear-gradient(150deg,rgba(10,14,26,0.42),rgba(3,7,18,0.94)_60%),url('https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center"
+          />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(10,14,26,0.22),rgba(10,14,26,0.98))]" />
 
           <div className="relative z-10 flex items-center justify-between gap-4">
             <Brand />
@@ -142,11 +145,14 @@ export default function AuthGatewayPage() {
                   </div>
                 </label>
 
-                <label className="grid gap-2">
-                  <span className="font-medium text-slate-200">Password</span>
+                <div className="grid gap-2">
+                  <label className="font-medium text-slate-200" htmlFor="auth-password">
+                    Password
+                  </label>
                   <div className="flex min-h-9 items-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 transition focus-within:border-cyan-200/55">
                     <LockKeyhole className="size-4 text-slate-400" />
                     <input
+                      id="auth-password"
                       className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
                       name="password"
                       placeholder="Minimum 8 characters"
@@ -161,7 +167,7 @@ export default function AuthGatewayPage() {
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
-                </label>
+                </div>
 
                 {mode === "signup" ? (
                   <label className="grid gap-2">

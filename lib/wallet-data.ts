@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getActiveFinanceSettings } from "@/lib/finance-settings";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { createClient } from "@/lib/supabase/server";
 import type { WalletBreakdown } from "@/lib/wallet";
@@ -24,10 +25,11 @@ export async function getWalletPageData() {
     return null;
   }
 
-  const [ledgerResult, withdrawalResult, settings] = await Promise.all([
+  const [ledgerResult, withdrawalResult, settings, financeSettings] = await Promise.all([
     supabase.from("credit_ledger").select("credits, source").eq("profile_id", user.id),
     supabase.from("withdrawals").select("amount_credits, status").eq("profile_id", user.id),
     getPlatformSettings(),
+    getActiveFinanceSettings(),
   ]);
 
   if (ledgerResult.error) {
@@ -59,6 +61,7 @@ export async function getWalletPageData() {
 
   return {
     adminSponsoredUnlocked: settings.sponsored_withdrawals_unlocked,
+    financeSettings,
     wallet,
   };
 }

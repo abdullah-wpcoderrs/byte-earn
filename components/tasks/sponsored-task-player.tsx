@@ -25,13 +25,14 @@ export function SponsoredTaskPlayer({ tasks }: SponsoredTaskPlayerProps) {
   const activeWatchedSeconds = watchedSeconds[activeTask.id] ?? 0;
   const totalWatchedToday = Object.values(watchedSeconds).reduce((total, seconds) => total + seconds, 0);
   const dailyCapSeconds = activeTask.dailyCapSeconds;
+  const watchTimeBonusCredits = activeTask.watchTimeBonusCredits ?? 0;
   const capExhausted = totalWatchedToday >= dailyCapSeconds;
 
   const earnedCredits = useMemo(
     () =>
       tasks.reduce((sum, task) => {
         const taskAwarded = awardedMilestones[task.id] ?? [];
-        return sum + task.milestones.filter((milestone) => taskAwarded.includes(milestone.seconds)).reduce((taskSum, milestone) => taskSum + milestone.credits, 0);
+        return sum + task.milestones.filter((milestone) => taskAwarded.includes(milestone.seconds)).reduce((taskSum, milestone) => taskSum + milestone.credits + (task.watchTimeBonusCredits ?? 0), 0);
       }, 0),
     [awardedMilestones, tasks],
   );
@@ -59,7 +60,7 @@ export function SponsoredTaskPlayer({ tasks }: SponsoredTaskPlayerProps) {
       ...current,
       [activeTask.id]: [...(current[activeTask.id] ?? []), nextMilestone.seconds],
     }));
-    setToast({ credits: nextMilestone.credits, id: Date.now() });
+    setToast({ credits: nextMilestone.credits + watchTimeBonusCredits, id: Date.now() });
     window.setTimeout(() => setToast(null), 2600);
   }
 
@@ -137,7 +138,9 @@ export function SponsoredTaskPlayer({ tasks }: SponsoredTaskPlayerProps) {
                 >
                   {completed ? <Check className="mb-3 size-4" /> : locked ? <Lock className="mb-3 size-4" /> : <Play className="mb-3 size-4" />}
                   <p className="font-semibold">{formatWatchTime(milestone.seconds)}</p>
-                  <p className="mt-1 text-[10px] opacity-80">{milestone.credits} Credits</p>
+                  <p className="mt-1 text-[10px] opacity-80">
+                    {milestone.credits + watchTimeBonusCredits} Credits
+                  </p>
                 </div>
               );
             })}

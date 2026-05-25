@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
 import { sendGmailMessage } from "@/lib/email/gmail-smtp";
+import { getOrCreateFinanceSettings } from "@/lib/finance-settings";
 import { requireAdmin } from "@/lib/admin";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -20,6 +21,11 @@ function textValue(formData: FormData, key: string, fallback = "") {
 function intValue(formData: FormData, key: string) {
   const value = Number(textValue(formData, key).replace(/,/g, ""));
   return Number.isInteger(value) ? value : 0;
+}
+
+function numberValue(formData: FormData, key: string) {
+  const value = Number(textValue(formData, key).replace(/,/g, ""));
+  return Number.isFinite(value) ? value : 0;
 }
 
 function fileValue(formData: FormData, key: string) {
@@ -47,6 +53,38 @@ async function insertLedger(profileId: string, credits: number, description: str
     source,
   });
   if (error) throw new Error(error.message);
+}
+
+async function getRewardRuleForAction(action: string) {
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data, error } = await supabase
+    .from("reward_rules")
+    .select("action, enabled, min_credits_per_action, max_credits_per_action")
+    .eq("action", action)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  return data as {
+    action: string;
+    enabled: boolean;
+    max_credits_per_action: number | null;
+    min_credits_per_action: number;
+  } | null;
+}
+
+function assertRewardRuleAllowsCredits(rule: Awaited<ReturnType<typeof getRewardRuleForAction>>, credits: number, redirectPath: string) {
+  if (!rule || !rule.enabled) {
+    redirect(`${redirectPath}?error=reward_disabled`);
+  }
+
+  if (credits < rule.min_credits_per_action) {
+    redirect(`${redirectPath}?error=reward_below_minimum`);
+  }
+
+  if (rule.max_credits_per_action !== null && credits > rule.max_credits_per_action) {
+    redirect(`${redirectPath}?error=reward_above_maximum`);
+  }
 }
 
 async function syncAuthRole(profileId: string, role: "admin" | "user") {
@@ -135,6 +173,8 @@ export async function bulkUserAction(formData: FormData) {
 
   if (action === "credit" || action === "deduct") {
     if (credits <= 0) redirect("/admin/users?error=invalid_credits");
+    const rule = await getRewardRuleForAction(action === "credit" ? "admin_credit" : "admin_adjustment");
+    assertRewardRuleAllowsCredits(rule, credits, "/admin/users");
     const signedCredits = action === "credit" ? credits : -credits;
     await Promise.all(
       (users ?? []).map(async (user) => {
@@ -149,8 +189,12 @@ export async function bulkUserAction(formData: FormData) {
   }
 
   if (action === "remove") {
+    const rule = await getRewardRuleForAction("admin_adjustment");
     await Promise.all(
       (users ?? []).map(async (user) => {
+        if (Math.abs(user.credits_balance) > 0) {
+          assertRewardRuleAllowsCredits(rule, Math.abs(user.credits_balance), "/admin/users");
+        }
         const { error } = await supabase
           .from("profiles")
           .update({ credits_balance: 0, updated_at: new Date().toISOString() })
@@ -390,6 +434,98 @@ export async function updatePlatformSettingsAction(formData: FormData) {
   revalidatePath("/admin/platform");
   await writeAuditLog({ action: "admin.platform.updated", actorId: admin.id, actorType: "admin", entityId: uuidPattern.test(settingsId) ? settingsId : null, entityType: "platform_settings", metadata: values });
   redirect("/admin/platform?updated=platform");
+}
+
+export async function updateRewardRuleAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:reward-rule:${admin.id}`, 30, 10 * 60 * 1000);
+  const ruleId = textValue(formData, "ruleId");
+  const credits = intValue(formData, "credits");
+  const minCreditsPerAction = Math.max(0, intValue(formData, "minCreditsPerAction"));
+  const maxCreditsInput = textValue(formData, "maxCreditsPerAction");
+  const maxCreditsPerAction = maxCreditsInput ? Math.max(0, intValue(formData, "maxCreditsPerAction")) : null;
+  const enabled = formData.get("enabled") === "on";
+
+  if (!uuidPattern.test(ruleId) || credits < 0 || (maxCreditsPerAction !== null && maxCreditsPerAction < minCreditsPerAction)) {
+    redirect("/admin/rewards?error=invalid_reward");
+  }
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data: rule, error: readError } = await supabase
+    .from("reward_rules")
+    .select("id, action")
+    .eq("id", ruleId)
+    .maybeSingle();
+
+  if (readError || !rule) {
+    redirect("/admin/rewards?error=missing_reward");
+  }
+
+  const { error } = await supabase
+    .from("reward_rules")
+    .update({
+      credits,
+      enabled,
+      max_credits_per_action: maxCreditsPerAction,
+      min_credits_per_action: minCreditsPerAction,
+      updated_at: new Date().toISOString(),
+      updated_by: admin.id,
+    })
+    .eq("id", ruleId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/rewards");
+  await writeAuditLog({
+    action: "admin.reward_rule.updated",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: ruleId,
+    entityType: "reward_rule",
+    metadata: { action: rule.action, credits, enabled, maxCreditsPerAction, minCreditsPerAction },
+  });
+  redirect("/admin/rewards?updated=reward_rule");
+}
+
+export async function updateFinanceSettingsAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:finance-settings:${admin.id}`, 20, 10 * 60 * 1000);
+  const creditsPerUnit = intValue(formData, "creditsPerUnit");
+  const usdPerUnit = numberValue(formData, "usdPerUnit");
+  const ngnPerUsd = numberValue(formData, "ngnPerUsd");
+
+  if (creditsPerUnit <= 0 || usdPerUnit <= 0 || ngnPerUsd <= 0) {
+    redirect("/admin/rewards?error=invalid_finance_settings");
+  }
+
+  const current = await getOrCreateFinanceSettings();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const values = {
+    active: true,
+    credits_per_unit: creditsPerUnit,
+    ngn_per_usd: ngnPerUsd.toFixed(4),
+    updated_at: new Date().toISOString(),
+    updated_by: admin.id,
+    usd_per_unit: usdPerUnit.toFixed(4),
+  };
+  const result = current.id
+    ? await supabase.from("finance_settings").update(values).eq("id", current.id)
+    : await supabase.from("finance_settings").insert(values);
+
+  if (result.error) throw new Error(result.error.message);
+
+  revalidateTag("finance-settings", "max");
+  revalidatePath("/admin/rewards");
+  revalidatePath("/wallet");
+  await writeAuditLog({
+    action: "admin.finance_settings.updated",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: current.id,
+    entityType: "finance_settings",
+    metadata: { creditsPerUnit, ngnPerUsd, usdPerUnit },
+  });
+  redirect("/admin/rewards?updated=finance_settings");
 }
 
 export async function createNotificationAction(formData: FormData) {

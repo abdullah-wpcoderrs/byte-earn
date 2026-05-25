@@ -1,6 +1,5 @@
 import "server-only";
 
-import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export type PlatformSettings = {
@@ -31,22 +30,18 @@ export const defaultPlatformSettings: PlatformSettings = {
   updated_at: new Date(0).toISOString(),
 };
 
-export const getPlatformSettings = unstable_cache(
-  async (): Promise<PlatformSettings> => {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("platform_settings")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+export async function getPlatformSettings(): Promise<PlatformSettings> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("platform_settings")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    if (error || !data) {
-      return defaultPlatformSettings;
-    }
+  if (error || !data) {
+    return defaultPlatformSettings;
+  }
 
-    return data;
-  },
-  ["platform-settings"],
-  { revalidate: 60, tags: ["platform-settings"] },
-);
+  return data;
+}

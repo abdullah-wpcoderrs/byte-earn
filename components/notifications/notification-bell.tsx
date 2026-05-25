@@ -1,34 +1,22 @@
 "use client";
 
 import { Bell } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { markNotificationReadAction } from "@/app/notifications/actions";
-import { createClient } from "@/lib/supabase/client";
 import type { NotificationItem } from "@/lib/notifications";
 
 type NotificationBellProps = {
+  panelPlacement?: "sidebar" | "mobile-header";
   notifications: NotificationItem[];
   unreadCount: number;
 };
 
-export function NotificationBell({ notifications, unreadCount }: NotificationBellProps) {
+export function NotificationBell({ notifications, panelPlacement = "sidebar", unreadCount }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
-
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel("platform-notifications")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "platform_notifications" }, () => {
-        router.refresh();
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [router]);
+  const panelPosition =
+    panelPlacement === "mobile-header"
+      ? "absolute right-0 top-12 z-50"
+      : "fixed bottom-4 left-[276px] z-50 max-lg:absolute max-lg:bottom-12 max-lg:left-auto max-lg:right-0";
 
   return (
     <div className="relative">
@@ -47,7 +35,7 @@ export function NotificationBell({ notifications, unreadCount }: NotificationBel
       </button>
 
       {open ? (
-        <div className="absolute bottom-12 right-0 z-50 grid w-80 overflow-hidden rounded-[5px] border border-white/10 bg-[#0d182b] shadow-2xl">
+        <div className={`${panelPosition} grid w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-[5px] border border-white/10 bg-[#0d182b] shadow-2xl`}>
           <div className="border-b border-white/10 px-3 py-2 font-semibold text-slate-100">Notifications</div>
           <div className="app-scrollbar max-h-80 overflow-y-auto">
             {notifications.map((notification) => (

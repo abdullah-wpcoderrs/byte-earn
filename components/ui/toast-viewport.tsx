@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toast } from "@/components/ui/toast";
 
 type ToastMessage = {
@@ -44,14 +44,20 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
       invalid_badge: { body: "Badge name and description are required.", title: "Badge not created" },
       invalid_credits: { body: "Enter a credit amount greater than zero.", title: "Invalid credit amount" },
       invalid_email: { body: "Email subject, body, and audience are required.", title: "Email blast not saved" },
+      invalid_finance_settings: { body: "Enter positive values for credits, USD, and NGN rate.", title: "Rates not saved" },
       invalid_notification: { body: "Notification title, body, and audience are required.", title: "Notification not sent" },
       invalid_post: { body: "This post id is invalid.", title: "Moderation failed" },
       invalid_post_type: { body: "Choose one of the supported post types.", title: "Post not submitted" },
+      invalid_reward: { body: "Choose a valid reward and non-negative credit amount.", title: "Reward not saved" },
       invalid_transition: { body: "This withdrawal cannot move to that state.", title: "Invalid review state" },
+      missing_reward: { body: "This reward rule no longer exists.", title: "Reward not found" },
       invalid_withdrawal: { body: "This withdrawal id is invalid.", title: "Review failed" },
       missing_post: { body: "This post no longer exists.", title: "Post not found" },
       missing_withdrawal: { body: "This withdrawal no longer exists.", title: "Withdrawal not found" },
       no_users: { body: "Select at least one user before applying a bulk action.", title: "No users selected" },
+      reward_above_maximum: { body: "This credit amount is above the configured admin reward limit.", title: "Reward limit exceeded" },
+      reward_below_minimum: { body: "This credit amount is below the configured admin reward minimum.", title: "Reward below minimum" },
+      reward_disabled: { body: "This reward action is currently disabled by admin configuration.", title: "Reward disabled" },
     };
     const selected = copy[error] ?? { body: error.replace(/_/g, " "), title: "Request failed" };
     messages.push({ body: selected.body, id: `error:${error}`, title: selected.title, tone: "warning" });
@@ -81,6 +87,8 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
       platform: { body: "Platform settings were saved.", title: "Platform updated" },
       post_published: { body: "Your post is live in the feed.", title: "Post published" },
       post_submitted: { body: "Your post was submitted for moderation.", title: "Post submitted" },
+      finance_settings: { body: "Credit conversion rates were saved.", title: "Rates updated" },
+      reward_rule: { body: "Reward rule was saved.", title: "Reward updated" },
       users: { body: "The selected user records were updated.", title: "Users updated" },
       withdrawal: { body: "The withdrawal review was saved.", title: "Withdrawal updated" },
     };
@@ -136,20 +144,91 @@ export function ToastViewport() {
   return (
     <div className="fixed right-4 top-4 z-50 grid w-[min(360px,calc(100vw-2rem))] gap-2" role="status" aria-live="polite">
       {visible.map((message) => (
-        <div className="relative" key={message.id}>
-          <Toast title={message.title} tone={message.tone}>
-            {message.body}
-          </Toast>
-          <button
-            aria-label="Dismiss notification"
-            className="absolute right-2 top-2 grid size-7 place-items-center rounded-[5px] text-slate-300 transition hover:bg-white/10 hover:text-white"
-            onClick={() => setDismissed((current) => [...current, message.id])}
-            type="button"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+        <ToastItem key={message.id} message={message} onDismiss={() => setDismissed((current) => [...current, message.id])} />
       ))}
+    </div>
+  );
+}
+
+type ToastItemProps = {
+  message: ToastMessage;
+  onDismiss: () => void;
+};
+
+function ToastItem({ message, onDismiss }: ToastItemProps) {
+  const [dragX, setDragX] = useState(0);
+  const [isInteracting, setIsInteracting] = useState(false);
+  const startXRef = useRef(0);
+  const timeoutRef = useRef<number | null>(null);
+
+  const clearDismissTimer = useCallback(() => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    clearDismissTimer();
+
+    if (!isInteracting) {
+      timeoutRef.current = window.setTimeout(onDismiss, 3000);
+    }
+
+    return clearDismissTimer;
+  }, [clearDismissTimer, isInteracting, message.id, onDismiss]);
+
+  const finishDrag = useCallback(() => {
+    if (Math.abs(dragX) > 96) {
+      onDismiss();
+      return;
+    }
+
+    setDragX(0);
+    setIsInteracting(false);
+  }, [dragX, onDismiss]);
+
+  return (
+    <div
+      className="relative transition-[opacity,transform] duration-150"
+      onBlur={() => setIsInteracting(false)}
+      onFocus={() => setIsInteracting(true)}
+      onMouseEnter={() => setIsInteracting(true)}
+      onMouseLeave={() => setIsInteracting(false)}
+      onPointerCancel={() => {
+        setDragX(0);
+        setIsInteracting(false);
+      }}
+      onPointerDown={(event) => {
+        startXRef.current = event.clientX;
+        setIsInteracting(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (!isInteracting) return;
+        setDragX(event.clientX - startXRef.current);
+      }}
+      onPointerUp={finishDrag}
+      style={{
+        opacity: Math.max(0.35, 1 - Math.abs(dragX) / 220),
+        transform: `translateX(${dragX}px)`,
+        touchAction: "pan-y",
+      }}
+    >
+      <Toast title={message.title} tone={message.tone}>
+        {message.body}
+      </Toast>
+      <button
+        aria-label="Dismiss notification"
+        className="absolute right-2 top-2 grid size-8 place-items-center rounded-[5px] text-slate-300 transition hover:bg-white/10 hover:text-white"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDismiss();
+        }}
+        type="button"
+      >
+        <X className="size-4" />
+      </button>
     </div>
   );
 }

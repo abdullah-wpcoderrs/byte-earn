@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BadgeCheck, Bell, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { BadgeCheck, Bell, Coins, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { requireAdmin } from "@/lib/admin";
 import { getCurrentUserNotifications } from "@/lib/notifications";
@@ -10,6 +10,7 @@ const adminNav = [
   { href: "/admin/withdrawals", icon: WalletCards, label: "Withdrawals" },
   { href: "/admin/moderation", icon: ShieldCheck, label: "Moderation" },
   { href: "/admin/leaderboard", icon: Trophy, label: "Leaderboard" },
+  { href: "/admin/rewards", icon: Coins, label: "Rewards" },
   { href: "/admin/platform", icon: Gauge, label: "Platform" },
   { href: "/admin/email-blasts", icon: MailPlus, label: "Emails" },
   { href: "/admin/badges", icon: BadgeCheck, label: "Badges" },

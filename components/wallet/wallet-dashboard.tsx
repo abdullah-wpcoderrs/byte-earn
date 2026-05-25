@@ -4,6 +4,7 @@ import { Banknote, ChartNoAxesCombined, ChevronDown, Clapperboard, Lock, ShieldC
 import { useMemo, useState } from "react";
 import { requestWithdrawalAction } from "@/app/(app)/wallet/actions";
 import { Modal } from "@/components/ui/modal";
+import type { FinanceSettings } from "@/lib/finance-settings";
 import { creditsToNaira, creditsToUsd, formatNaira, formatUsd } from "@/lib/money";
 import type { WalletBreakdown } from "@/lib/wallet";
 import { areSponsoredWithdrawalsUnlocked, getAvailableWithdrawalCredits, getTotalCredits } from "@/lib/wallet";
@@ -12,45 +13,51 @@ type FiatMode = "NGN" | "USD";
 
 type WalletDashboardProps = {
   adminSponsoredUnlocked: boolean;
+  financeSettings: FinanceSettings;
   wallet: WalletBreakdown;
 };
 
-export function WalletDashboard({ adminSponsoredUnlocked, wallet }: WalletDashboardProps) {
+export function WalletDashboard({ adminSponsoredUnlocked, financeSettings, wallet }: WalletDashboardProps) {
   const [fiatMode, setFiatMode] = useState<FiatMode>("NGN");
   const [modalOpen, setModalOpen] = useState(false);
   const sponsoredUnlocked = areSponsoredWithdrawalsUnlocked(adminSponsoredUnlocked);
   const totalCredits = getTotalCredits(wallet);
   const availableCredits = getAvailableWithdrawalCredits(wallet, sponsoredUnlocked);
+  const conversionRate = {
+    creditsPerUnit: financeSettings.creditsPerUnit,
+    ngnPerUsd: financeSettings.ngnPerUsd,
+    usdPerUnit: financeSettings.usdPerUnit,
+  };
 
   const primaryAmount = useMemo(() => {
-    const amount = fiatMode === "NGN" ? creditsToNaira(totalCredits) : creditsToUsd(totalCredits);
+    const amount = fiatMode === "NGN" ? creditsToNaira(totalCredits, conversionRate) : creditsToUsd(totalCredits, conversionRate);
     return fiatMode === "NGN" ? formatNaira(amount) : formatUsd(amount);
-  }, [fiatMode, totalCredits]);
+  }, [conversionRate, fiatMode, totalCredits]);
 
   const kpis = [
     {
       icon: Users,
       label: "Referral Earnings",
       meta: "Unlocked anytime",
-      value: formatNaira(creditsToNaira(wallet.referralCredits)),
+      value: formatNaira(creditsToNaira(wallet.referralCredits, conversionRate)),
     },
     {
       icon: Clapperboard,
       label: "Sponsored Tasks Earnings",
       meta: sponsoredUnlocked ? "Unlocked for payout" : "Locked until admin unlock or third Saturday",
-      value: formatNaira(creditsToNaira(wallet.sponsoredCredits)),
+      value: formatNaira(creditsToNaira(wallet.sponsoredCredits, conversionRate)),
     },
     {
       icon: Banknote,
       label: "Available for Withdrawal",
       meta: `${availableCredits.toLocaleString("en-US")} credits`,
-      value: formatNaira(creditsToNaira(availableCredits)),
+      value: formatNaira(creditsToNaira(availableCredits, conversionRate)),
     },
     {
       icon: ChartNoAxesCombined,
       label: "Total Withdrawn",
       meta: `${wallet.totalWithdrawnCredits.toLocaleString("en-US")} credits`,
-      value: formatNaira(creditsToNaira(wallet.totalWithdrawnCredits)),
+      value: formatNaira(creditsToNaira(wallet.totalWithdrawnCredits, conversionRate)),
     },
   ];
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { getOrCreateFinanceSettings } from "@/lib/finance-settings";
 import { defaultPlatformSettings, type PlatformSettings } from "@/lib/platform-settings";
 import { generateReferralCode } from "@/lib/referrals";
 import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
@@ -21,6 +22,7 @@ export type AdminUserFilters = {
 };
 
 export type AdminUserRow = Awaited<ReturnType<typeof getAdminUsers>>["rows"][number];
+export type AdminRewardRule = Awaited<ReturnType<typeof getRewardRules>>[number];
 
 function relationDisplayName(value: unknown) {
   if (Array.isArray(value)) {
@@ -108,8 +110,10 @@ export async function requireAdmin(): Promise<AdminSession> {
   };
 }
 
-async function countRows(table: "badges" | "posts" | "profiles" | "withdrawals", filters?: Record<string, string>) {
-  const supabase = await createClient();
+type SupabaseQueryClient = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>;
+
+async function countRows(client: SupabaseQueryClient, table: "badges" | "posts" | "profiles" | "withdrawals", filters?: Record<string, string>) {
+  const supabase = client;
   let query = supabase.from(table).select("id", { count: "exact", head: true });
 
   Object.entries(filters ?? {}).forEach(([key, value]) => {
@@ -124,11 +128,18 @@ async function countRows(table: "badges" | "posts" | "profiles" | "withdrawals",
 }
 
 export async function getAdminStats() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+
+  if (hasSupabaseAdminKey()) {
+    await syncMissingAuthProfiles(supabase as ReturnType<typeof createAdminClient>);
+  }
+
   const [users, pendingPosts, pendingWithdrawals, badges] = await Promise.all([
-    countRows("profiles"),
-    countRows("posts", { status: "pending" }),
-    countRows("withdrawals", { status: "pending" }),
-    countRows("badges"),
+    countRows(supabase, "profiles"),
+    countRows(supabase, "posts", { status: "pending" }),
+    countRows(supabase, "withdrawals", { status: "pending" }),
+    countRows(supabase, "badges"),
   ]);
 
   return { badges, pendingPosts, pendingWithdrawals, users };
@@ -157,6 +168,40 @@ export async function getOrCreatePlatformSettings() {
     return defaultPlatformSettings;
   }
   return created;
+}
+
+export async function getRewardRules() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data, error } = await supabase
+    .from("reward_rules")
+    .select("id, action, label, credits, enabled, description, min_credits_per_action, max_credits_per_action, updated_at")
+    .order("action", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((rule) => ({
+    action: rule.action,
+    credits: rule.credits,
+    description: rule.description,
+    enabled: rule.enabled,
+    id: rule.id,
+    label: rule.label,
+    maxCreditsPerAction: rule.max_credits_per_action,
+    minCreditsPerAction: rule.min_credits_per_action,
+    updatedAt: rule.updated_at,
+  }));
+}
+
+export async function getRewardConfiguration() {
+  const [rules, financeSettings] = await Promise.all([
+    getRewardRules(),
+    getOrCreateFinanceSettings(),
+  ]);
+
+  return { financeSettings, rules };
 }
 
 export async function getAdminUsers(filters: AdminUserFilters) {

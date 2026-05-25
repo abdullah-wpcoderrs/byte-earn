@@ -6,7 +6,8 @@
 - Set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - Set `SUPABASE_POSTGRES_URL` to the Supabase Postgres connection string only for Drizzle migrations.
 - Set `NEXT_PUBLIC_APP_URL` to the production origin.
-- Set `PAYSTACK_SECRET_KEY`.
+- Set `PAYSTACK_SECRET_KEY` for server-side Paystack transaction initialization and verification.
+- Set `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` only if the client uses Paystack InlineJS/Popup directly.
 - Confirm `PAYSTACK_ACTIVATION_ENABLED=true` for paid launch.
 
 ## Database

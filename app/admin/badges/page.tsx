@@ -1,4 +1,5 @@
 import { BadgeCheck } from "lucide-react";
+import { CreateBadgeModal } from "./create-badge-modal";
 import { getAdminBadges } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,10 @@ export default async function AdminBadgesPage() {
     <div className="grid gap-4">
       <section className="glass-strong p-4 sm:p-5">
         <p className="text-muted">Created badge assets, labels, colors, and descriptions</p>
-        <h1 className="mt-1 text-[28px] font-semibold leading-tight">Badges</h1>
+        <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <h1 className="text-[28px] font-semibold leading-tight">Badges</h1>
+          <CreateBadgeModal />
+        </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

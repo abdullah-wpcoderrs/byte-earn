@@ -70,12 +70,16 @@ export async function signUpAction(formData: FormData) {
     redirect(`/?auth_error=${encodeURIComponent(profileError.message)}`);
   }
 
-  if (providedReferralCode) {
-    await supabase.from("referral_attributions").insert({
+  if (providedReferralCode && referrer?.id && referrer.id !== data.user.id) {
+    const { error: attributionError } = await supabase.from("referral_attributions").insert({
       referral_code: providedReferralCode,
       referred_profile_id: data.user.id,
       referrer_id: referrer?.id,
     });
+
+    if (attributionError && attributionError.code !== "23505") {
+      redirect(`/?auth_error=${encodeURIComponent(attributionError.message)}`);
+    }
   }
 
   redirect(isPaystackActivationEnabled() ? "/activate?updated=account_created" : "/onboarding?updated=account_created");

@@ -32,8 +32,12 @@ export function PostGrid({ posts }: PostGridProps) {
             href={`/posts/${post.id}`}
             key={post.id}
           >
-            <div className="absolute inset-0 bg-cover bg-center transition duration-300 group-hover:scale-105" style={{ backgroundImage: `url(${post.mediaUrl})` }} />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.04),rgba(2,6,23,0.82))]" />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-cover bg-center transition duration-300 group-hover:scale-105"
+              style={{ backgroundImage: `url(${post.mediaUrl})` }}
+            />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.04),rgba(2,6,23,0.82))]" />
             <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-[5px] bg-black/40 px-2 py-1 text-[10px] text-cyan-100 backdrop-blur">
               <Icon className="size-3" />
               {badge}

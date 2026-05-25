@@ -47,6 +47,58 @@ test("referral tracking and admin actions have rate limits", () => {
   assert.match(adminActions, /admin:moderation/);
 });
 
+test("referral rewards are qualified server-side and idempotently", () => {
+  const migration = read("db/migrations/0011_referral_rewards.sql");
+  const authActions = read("app/auth/actions.ts");
+
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "reward_rules"/);
+  assert.match(migration, /'referral_qualified'/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION "private"\."qualify_referral_for_profile"/);
+  assert.match(migration, /FOR UPDATE/);
+  assert.match(migration, /"status" = 'pending'/);
+  assert.match(migration, /"referral_count" = "referral_count" \+ 1/);
+  assert.match(migration, /"credit_ledger"/);
+  assert.match(migration, /AFTER UPDATE OF "status" ON "public"\."profiles"/);
+  assert.match(authActions, /referrer\?\.id && referrer\.id !== data\.user\.id/);
+});
+
+test("finance settings drive server-side credit conversion", () => {
+  const migration = read("db/migrations/0012_finance_settings.sql");
+  const money = read("lib/money.ts");
+  const walletActions = read("app/(app)/wallet/actions.ts");
+  const adminActions = read("app/admin/actions.ts");
+  const rewardsPage = read("app/admin/rewards/page.tsx");
+  const rewardControls = read("app/admin/rewards/reward-controls.tsx");
+
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "finance_settings"/);
+  assert.match(migration, /"credits_per_unit"/);
+  assert.match(migration, /"ngn_per_credit_snapshot"/);
+  assert.match(money, /getNgnPerCredit/);
+  assert.match(walletActions, /getActiveFinanceSettings/);
+  assert.match(walletActions, /nairaToCredits\(amountNaira, financeSettings\)/);
+  assert.match(walletActions, /ngn_per_credit_snapshot/);
+  assert.match(adminActions, /updateFinanceSettingsAction/);
+  assert.match(adminActions, /admin\.finance_settings\.updated/);
+  assert.match(rewardsPage, /RewardControls/);
+  assert.match(rewardControls, /Credit conversion/);
+  assert.match(rewardControls, /Modal/);
+  assert.match(rewardControls, /maxCreditsPerAction/);
+  assert.match(adminActions, /assertRewardRuleAllowsCredits/);
+  assert.match(adminActions, /admin_credit/);
+  assert.match(adminActions, /admin_adjustment/);
+});
+
+test("task rewards are loaded from configured reward rules", () => {
+  const tasksPage = read("app/(app)/tasks/page.tsx");
+  const tasksData = read("lib/tasks-data.ts");
+  const taskPlayer = read("components/tasks/sponsored-task-player.tsx");
+
+  assert.match(tasksPage, /getConfiguredSponsoredTasks/);
+  assert.match(tasksData, /sponsored_task_milestone/);
+  assert.match(tasksData, /watch_time_milestone/);
+  assert.match(taskPlayer, /watchTimeBonusCredits/);
+});
+
 test("admins bypass payment and onboarding gates", () => {
   const middleware = read("lib/supabase/middleware.ts");
   const authActions = read("app/auth/actions.ts");

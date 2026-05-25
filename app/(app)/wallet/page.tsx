@@ -11,5 +11,5 @@ export default async function WalletPage() {
     redirect("/");
   }
 
-  return <WalletDashboard adminSponsoredUnlocked={data.adminSponsoredUnlocked} wallet={data.wallet} />;
+  return <WalletDashboard adminSponsoredUnlocked={data.adminSponsoredUnlocked} financeSettings={data.financeSettings} wallet={data.wallet} />;
 }

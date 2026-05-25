@@ -10,6 +10,7 @@ export type SponsoredTask = {
   sponsor: string;
   title: string;
   videoUrl: string;
+  watchTimeBonusCredits?: number;
 };
 
 export const sponsoredTasks: SponsoredTask[] = [

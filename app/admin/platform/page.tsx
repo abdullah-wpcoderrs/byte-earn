@@ -1,6 +1,5 @@
-import { BadgePlus, BellPlus, MailPlus, Save } from "lucide-react";
+import { BellPlus, MailPlus, Save } from "lucide-react";
 import {
-  createBadgeAction,
   createEmailBlastAction,
   createNotificationAction,
   updatePlatformSettingsAction,
@@ -63,7 +62,7 @@ export default async function AdminPlatformPage() {
         </Button>
       </form>
 
-      <section className="grid gap-4 xl:grid-cols-3">
+      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <form action={createNotificationAction} className="glass grid content-start gap-3 p-4">
           <h2 className="text-base font-semibold">Platform notification</h2>
           <TextInput label="Title" name="title" />
@@ -89,26 +88,6 @@ export default async function AdminPlatformPage() {
           </Select>
           <Button icon={<MailPlus className="size-4" />} type="submit">
             Save blast
-          </Button>
-        </form>
-
-        <form action={createBadgeAction} className="glass grid content-start gap-3 p-4">
-          <h2 className="text-base font-semibold">Custom badge</h2>
-          <TextInput label="Name" name="name" />
-          <TextInput defaultValue="#5fd7ff" label="Color" name="color" />
-          <label className="grid gap-2">
-            <span className="font-medium text-slate-200">Badge image</span>
-            <input
-              accept="image/gif,image/jpeg,image/png,image/svg+xml,image/webp"
-              className="min-h-9 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 py-1 text-slate-300 file:mr-3 file:rounded-[5px] file:border-0 file:bg-cyan-300 file:px-2.5 file:py-1 file:font-semibold file:text-slate-950"
-              name="imageFile"
-              required
-              type="file"
-            />
-          </label>
-          <TextArea label="Description" name="description" />
-          <Button icon={<BadgePlus className="size-4" />} type="submit">
-            Create badge
           </Button>
         </form>
       </section>

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
+import { getActiveFinanceSettings } from "@/lib/finance-settings";
 import { nairaToCredits } from "@/lib/money";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { assertRateLimit } from "@/lib/rate-limit";
@@ -39,10 +40,11 @@ export async function requestWithdrawalAction(formData: FormData) {
 
   assertRateLimit(`wallet:withdrawal:${user.id}`, 3, 60 * 60 * 1000);
 
-  const [ledgerResult, withdrawalResult, settings] = await Promise.all([
+  const [ledgerResult, withdrawalResult, settings, financeSettings] = await Promise.all([
     supabase.from("credit_ledger").select("credits, source").eq("profile_id", user.id),
     supabase.from("withdrawals").select("amount_credits, status").eq("profile_id", user.id),
     getPlatformSettings(),
+    getActiveFinanceSettings(),
   ]);
 
   if (ledgerResult.error) {
@@ -70,7 +72,8 @@ export async function requestWithdrawalAction(formData: FormData) {
     .reduce((total, row) => total + row.amount_credits, 0);
   const sponsoredUnlocked = areSponsoredWithdrawalsUnlocked(settings.sponsored_withdrawals_unlocked);
   const availableCredits = Math.max(0, getAvailableWithdrawalCredits(wallet, sponsoredUnlocked) - pendingOrPaidCredits);
-  const requestedCredits = Math.round(nairaToCredits(amountNaira));
+  const requestedCredits = Math.ceil(nairaToCredits(amountNaira, financeSettings));
+  const ngnPerCredit = (financeSettings.usdPerUnit / financeSettings.creditsPerUnit) * financeSettings.ngnPerUsd;
 
   if (requestedCredits > availableCredits) {
     redirect("/wallet?withdrawal_error=insufficient_available_balance");
@@ -84,7 +87,11 @@ export async function requestWithdrawalAction(formData: FormData) {
       amount_credits: requestedCredits,
       amount_naira: amountNaira.toFixed(2),
       bank_name: bankName,
+      credits_per_unit_snapshot: financeSettings.creditsPerUnit,
+      ngn_per_credit_snapshot: ngnPerCredit.toFixed(4),
+      ngn_per_usd_snapshot: financeSettings.ngnPerUsd.toFixed(4),
       profile_id: user.id,
+      usd_per_unit_snapshot: financeSettings.usdPerUnit.toFixed(4),
     })
     .select("id")
     .maybeSingle();
@@ -98,7 +105,7 @@ export async function requestWithdrawalAction(formData: FormData) {
     actorId: user.id,
     entityId: request?.id,
     entityType: "withdrawal",
-    metadata: { amountNaira },
+    metadata: { amountNaira, requestedCredits, rate: financeSettings },
   });
 
   redirect("/wallet?withdrawal=requested");
