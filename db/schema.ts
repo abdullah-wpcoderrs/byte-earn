@@ -234,6 +234,7 @@ export const platformNotifications = pgTable("platform_notifications", {
   body: text("body").notNull(),
   audience: notificationAudience("audience").notNull().default("all"),
   createdBy: uuid("created_by").references(() => profiles.id),
+  recipientProfileId: uuid("recipient_profile_id").references(() => profiles.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

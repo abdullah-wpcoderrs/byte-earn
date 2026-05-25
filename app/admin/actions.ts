@@ -280,10 +280,11 @@ export async function moderatePostAction(formData: FormData) {
   if (!uuidPattern.test(postId)) redirect("/admin/moderation?error=invalid_post");
 
   const supabase = await createClient();
-  const { data: post, error: postError } = await supabase.from("posts").select("id, author_id").eq("id", postId).maybeSingle();
+  const { data: post, error: postError } = await supabase.from("posts").select("id, author_id, status").eq("id", postId).maybeSingle();
   if (postError || !post) redirect("/admin/moderation?error=missing_post");
 
   if (action === "publish" || action === "reject") {
+    if (post.status !== "pending") redirect("/admin/moderation?error=invalid_transition");
     const { error } = await supabase.from("posts").update({ status: action === "publish" ? "published" : "rejected" }).eq("id", postId);
     if (error) throw new Error(error.message);
   }
@@ -293,6 +294,7 @@ export async function moderatePostAction(formData: FormData) {
       audience: "all",
       body: message,
       created_by: admin.id,
+      recipient_profile_id: post.author_id,
       title: "Post rejected",
     });
   }
@@ -302,7 +304,15 @@ export async function moderatePostAction(formData: FormData) {
     if (error) throw new Error(error.message);
   }
 
+  if (action !== "publish" && action !== "reject" && action !== "delete") {
+    redirect("/admin/moderation?error=invalid_action");
+  }
+
   revalidatePath("/admin/moderation");
+  revalidatePath("/admin");
+  revalidatePath("/feed");
+  revalidatePath(`/u/${post.author_id}`);
+  revalidatePath("/profile");
   await writeAuditLog({
     action: `admin.post.${action}`,
     actorId: admin.id,

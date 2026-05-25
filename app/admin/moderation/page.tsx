@@ -17,8 +17,11 @@ function first(value: string | string[] | undefined) {
 
 export default async function AdminModerationPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const status = first(params.status) as "pending" | "published" | "rejected" | undefined;
-  const posts = await getModerationPosts(["pending", "published", "rejected"].includes(status ?? "") ? status : undefined);
+  const rawStatus = first(params.status);
+  const status = rawStatus === undefined
+    ? "pending"
+    : (["pending", "published", "rejected"].includes(rawStatus) ? rawStatus : undefined) as "pending" | "published" | "rejected" | undefined;
+  const posts = await getModerationPosts(status);
 
   return (
     <div className="grid gap-4">
@@ -40,8 +43,8 @@ export default async function AdminModerationPage({ searchParams }: PageProps) {
       <section className="grid gap-3">
         {posts.map((post) => (
           <article className="glass grid gap-4 p-4 lg:grid-cols-[92px_1fr_300px]" key={post.id}>
-            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[5px] border border-white/10 bg-white/[0.055] text-center text-muted">
-              {post.type}
+            <div className="aspect-square overflow-hidden rounded-[5px] border border-white/10 bg-white/[0.055]">
+              <div className="size-full bg-cover bg-center" style={{ backgroundImage: `url(${post.mediaUrl})` }} />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -57,10 +60,10 @@ export default async function AdminModerationPage({ searchParams }: PageProps) {
               <input name="postId" type="hidden" value={post.id} />
               <TextInput label="Rejection message" name="message" placeholder="Reason for author notification" />
               <div className="grid grid-cols-3 gap-2">
-                <Button icon={<CheckCircle2 className="size-4" />} name="moderationAction" type="submit" value="publish">
+                <Button disabled={post.status !== "pending"} icon={<CheckCircle2 className="size-4" />} name="moderationAction" type="submit" value="publish">
                   Publish
                 </Button>
-                <Button icon={<XCircle className="size-4" />} name="moderationAction" type="submit" value="reject" variant="secondary">
+                <Button disabled={post.status !== "pending"} icon={<XCircle className="size-4" />} name="moderationAction" type="submit" value="reject" variant="secondary">
                   Reject
                 </Button>
                 <Button icon={<Trash2 className="size-4" />} name="moderationAction" type="submit" value="delete" variant="danger">

@@ -29,10 +29,13 @@ export type FeedPost = {
 };
 
 export type ProfilePost = {
+  author?: string;
   caption: string;
+  handle?: string;
   id: string;
   likesCount: number;
   mediaUrl: string;
+  status: "pending" | "published" | "rejected";
   type: "image_audio" | "image_text" | "video_text";
 };
 
@@ -109,17 +112,26 @@ async function getViewerId() {
 }
 
 function toProfilePost(row: {
+  author_id?: string;
   caption: string;
   id: string;
   likes_count: number;
   media_url: string;
+  profiles?: RelationProfile;
+  status?: "pending" | "published" | "rejected";
   type: "image_audio" | "image_text" | "video_text";
 }): ProfilePost {
+  const authorProfile = firstRelation(row.profiles);
+  const referralCode = authorProfile?.referral_code ?? row.author_id ?? "";
+
   return {
+    author: authorProfile?.display_name ?? undefined,
     caption: row.caption,
+    handle: referralCode || row.author_id,
     id: row.id,
     likesCount: row.likes_count,
     mediaUrl: row.media_url,
+    status: row.status ?? "published",
     type: row.type,
   };
 }
@@ -240,12 +252,18 @@ export async function getOwnProfileData() {
     return null;
   }
 
-  const [profileResult, postsResult] = await Promise.all([
+  const [profileResult, postsResult, bookmarksResult] = await Promise.all([
     supabase.from("profiles").select("id, display_name, referral_code, referral_count").eq("id", viewerId).maybeSingle(),
     supabase
       .from("posts")
-      .select("id, type, caption, media_url, likes_count")
+      .select("id, type, status, caption, media_url, likes_count")
       .eq("author_id", viewerId)
+      .order("created_at", { ascending: false })
+      .limit(60),
+    supabase
+      .from("post_bookmarks")
+      .select("posts:post_id(id, author_id, type, status, caption, media_url, likes_count, profiles:author_id(display_name, referral_code))")
+      .eq("profile_id", viewerId)
       .order("created_at", { ascending: false })
       .limit(60),
   ]);
@@ -258,10 +276,20 @@ export async function getOwnProfileData() {
     throw new Error(postsResult.error.message);
   }
 
+  if (bookmarksResult.error) {
+    throw new Error(bookmarksResult.error.message);
+  }
+
   const profile = profileResult.data as ProfileRow | null;
   if (!profile) {
     return null;
   }
+
+  const ownPosts = (postsResult.data ?? []).map(toProfilePost);
+  const savedPosts = ((bookmarksResult.data ?? []) as unknown as Array<{ posts: Parameters<typeof toProfilePost>[0] | Parameters<typeof toProfilePost>[0][] | null }>)
+    .map((row) => firstRelation(row.posts))
+    .filter((post): post is Parameters<typeof toProfilePost>[0] => Boolean(post && post.author_id !== viewerId && post.status === "published"))
+    .map(toProfilePost);
 
   return {
     profile: {
@@ -271,7 +299,10 @@ export async function getOwnProfileData() {
       referralCode: profile.referral_code,
       referralCount: profile.referral_count,
     },
-    posts: (postsResult.data ?? []).map(toProfilePost),
+    pendingPosts: ownPosts.filter((post) => post.status === "pending"),
+    posts: ownPosts,
+    publishedPosts: ownPosts.filter((post) => post.status === "published"),
+    savedPosts,
   };
 }
 
@@ -294,7 +325,7 @@ export async function getPublicProfileData(identifier: string) {
 
   const { data, error } = await supabase
     .from("posts")
-    .select("id, type, caption, media_url, likes_count")
+    .select("id, type, status, caption, media_url, likes_count")
     .eq("author_id", profile.id)
     .eq("status", "published")
     .order("created_at", { ascending: false })

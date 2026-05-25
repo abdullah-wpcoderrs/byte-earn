@@ -129,6 +129,7 @@ test("admin user creation uses server-only Supabase admin auth", () => {
 
 test("hardening migration includes audit, RLS, and storage policies", () => {
   const migration = read("db/migrations/0007_phase8_hardening.sql");
+  const moderationHardening = read("db/migrations/0014_admin_moderation_hardening.sql");
 
   assert.match(migration, /CREATE TABLE "audit_logs"/);
   assert.match(migration, /"private"\."is_admin"/);
@@ -136,4 +137,8 @@ test("hardening migration includes audit, RLS, and storage policies", () => {
   assert.match(migration, /ALTER TABLE "posts" ENABLE ROW LEVEL SECURITY/);
   assert.match(migration, /INSERT INTO "storage"\."buckets"/);
   assert.match(migration, /post_media_insert_own_folder/);
+  assert.match(moderationHardening, /recipient_profile_id/);
+  assert.match(moderationHardening, /posts_insert_own_respects_approval/);
+  assert.match(moderationHardening, /posts_update_own_pending_only/);
+  assert.match(moderationHardening, /post_approval_required/);
 });

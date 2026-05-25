@@ -2,7 +2,7 @@ import { Link2, LogOut, SquarePlus } from "lucide-react";
 import { redirect } from "next/navigation";
 import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
-import { PostGrid } from "@/components/profile/post-grid";
+import { ProfilePostTabs } from "@/components/profile/profile-post-tabs";
 import { ReferralShareButton } from "@/components/share/referral-share-button";
 import { getOwnProfileData } from "@/lib/posts";
 
@@ -67,13 +67,7 @@ export default async function ProfilePage() {
         </div>
       </section>
 
-      <section className="glass p-4">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">Posts</h2>
-          <p className="text-muted">All media types</p>
-        </div>
-        <PostGrid posts={data.posts} />
-      </section>
+      <ProfilePostTabs pendingPosts={data.pendingPosts} publishedPosts={data.publishedPosts} savedPosts={data.savedPosts} />
     </div>
   );
 }

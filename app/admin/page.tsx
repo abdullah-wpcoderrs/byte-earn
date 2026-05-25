@@ -7,9 +7,9 @@ export default async function AdminPage() {
   const stats = await getAdminStats();
   const cards = [
     { href: "/admin/users", icon: UsersRound, label: "Users", value: stats.users },
-    { href: "/admin/moderation", icon: ShieldCheck, label: "Pending posts", value: stats.pendingPosts },
+    { href: "/admin/moderation?status=pending", icon: ShieldCheck, label: "Pending posts", value: stats.pendingPosts },
     { href: "/admin/withdrawals", icon: WalletCards, label: "Pending withdrawals", value: stats.pendingWithdrawals },
-    { href: "/admin/platform", icon: BadgeCheck, label: "Badges", value: stats.badges },
+    { href: "/admin/badges", icon: BadgeCheck, label: "Badges", value: stats.badges },
   ];
 
   return (

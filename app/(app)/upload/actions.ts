@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
 import { getPlatformSettings } from "@/lib/platform-settings";
@@ -44,6 +45,23 @@ function assertFile(file: File | null, target: "feed" | "upload", message: strin
     redirectWithError(target, message);
   }
   return file;
+}
+
+function assertAcceptedFile(file: File, target: "feed" | "upload", category: "audio" | "image" | "video") {
+  const type = file.type.toLowerCase();
+  const name = file.name.toLowerCase();
+
+  if (category === "image" && !type.startsWith("image/")) {
+    redirectWithError(target, "invalid_media_file");
+  }
+
+  if (category === "video" && !type.startsWith("video/")) {
+    redirectWithError(target, "invalid_media_file");
+  }
+
+  if (category === "audio" && type !== "audio/mpeg" && !name.endsWith(".mp3")) {
+    redirectWithError(target, "invalid_audio_file");
+  }
 }
 
 function extensionFor(file: File) {
@@ -100,6 +118,10 @@ export async function createPostAction(formData: FormData) {
   const mediaFile = assertFile(optionalFile(formData, "mediaFile"), target, "media_required");
   const audioFile = optionalFile(formData, "audioFile");
   const mediaBucket = type === "video_text" ? "post-videos" : "post-images";
+  assertAcceptedFile(mediaFile, target, type === "video_text" ? "video" : "image");
+  if (audioFile) {
+    assertAcceptedFile(audioFile, target, "audio");
+  }
   const mediaUrl = await uploadPublicFile({ bucket: mediaBucket, file: mediaFile, target, userId: user.id });
   const audioUrl = type === "image_audio"
     ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, target, "audio_required"), target, userId: user.id })
@@ -130,6 +152,12 @@ export async function createPostAction(formData: FormData) {
     entityType: "post",
     metadata: { status, type },
   });
+
+  revalidatePath("/feed");
+  revalidatePath("/profile");
+  if (post?.id) {
+    revalidatePath(`/posts/${post.id}`);
+  }
 
   const updated = status === "published" ? "post_published" : "post_submitted";
   redirect(target === "feed" ? `/feed?post=${post?.id ?? ""}&updated=${updated}` : `/upload?updated=${updated}`);

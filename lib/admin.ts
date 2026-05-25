@@ -281,6 +281,7 @@ export async function getAdminUsers(filters: AdminUserFilters) {
 }
 
 export async function getModerationPosts(status?: "pending" | "published" | "rejected") {
+  await requireAdmin();
   const supabase = await createClient();
   let query = supabase
     .from("posts")

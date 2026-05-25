@@ -48,9 +48,12 @@ export function AdminMobileNav({ adminLabel, notifications, unreadCount }: Admin
             <Menu className="size-5" />
           </button>
 
-          <Link className="flex min-w-0 items-center gap-2 text-base font-semibold leading-none" href="/admin" prefetch={false}>
-            <ByteEarnLogo className="size-8 shrink-0" aria-hidden="true" />
-            <span className="truncate">byte-earn admin</span>
+          <Link className="flex min-w-0 items-center gap-3" href="/admin" prefetch={false}>
+            <ByteEarnLogo className="size-10 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold leading-none">byte-earn admin</p>
+              <p className="mt-1 truncate text-muted">{adminLabel}</p>
+            </div>
           </Link>
 
           <Link className="rounded-[5px] border border-white/10 px-3 py-2 font-semibold text-cyan-100" href="/feed" prefetch={false}>
