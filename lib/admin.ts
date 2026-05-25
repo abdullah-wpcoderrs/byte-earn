@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { defaultPlatformSettings, type PlatformSettings } from "@/lib/platform-settings";
 import { generateReferralCode } from "@/lib/referrals";
 import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -20,20 +21,6 @@ export type AdminUserFilters = {
 };
 
 export type AdminUserRow = Awaited<ReturnType<typeof getAdminUsers>>["rows"][number];
-
-const defaultPlatformSettings = {
-  daily_watch_limit_seconds: 1800,
-  id: "",
-  leaderboard_strict_mode: true,
-  leaderboard_uses_bookmarks: false,
-  leaderboard_uses_engagement: true,
-  leaderboard_uses_referrals: true,
-  leaderboard_uses_watch_time: false,
-  post_approval_required: true,
-  sponsored_withdrawals_unlocked: false,
-  under_construction: false,
-  updated_at: new Date(0).toISOString(),
-};
 
 function relationDisplayName(value: unknown) {
   if (Array.isArray(value)) {
@@ -278,27 +265,50 @@ export async function getModerationPosts(status?: "pending" | "published" | "rej
   }));
 }
 
-export async function getLeaderboardRows() {
+export async function getLeaderboardRows(settings: PlatformSettings = defaultPlatformSettings) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, display_name, referral_count, credits_balance, status")
-    .neq("status", "pending_payment")
-    .limit(25);
+  const [{ data: profiles, error }, { data: posts, error: postsError }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, display_name, referral_count, credits_balance, status")
+      .neq("status", "pending_payment")
+      .limit(100),
+    supabase
+      .from("posts")
+      .select("author_id, likes_count, comments_count, bookmarks_count")
+      .eq("status", "published")
+      .limit(1000),
+  ]);
 
   if (error) {
     throw new Error(error.message);
   }
+  if (postsError) {
+    throw new Error(postsError.message);
+  }
 
-  return (data ?? [])
+  const engagementByProfile = new Map<string, { bookmarks: number; engagement: number }>();
+  (posts ?? []).forEach((post) => {
+    const current = engagementByProfile.get(post.author_id) ?? { bookmarks: 0, engagement: 0 };
+    current.bookmarks += post.bookmarks_count ?? 0;
+    current.engagement += (post.likes_count ?? 0) + (post.comments_count ?? 0);
+    engagementByProfile.set(post.author_id, current);
+  });
+
+  return (profiles ?? [])
     .map((row) => ({
       creditsBalance: row.credits_balance,
       displayName: row.display_name,
       id: row.id,
       referralCount: row.referral_count,
-      score: row.referral_count * 100 + row.credits_balance,
+      score:
+        (settings.leaderboard_uses_referrals ? row.referral_count * 100 : 0) +
+        (settings.leaderboard_uses_watch_time ? row.credits_balance : 0) +
+        (settings.leaderboard_uses_engagement ? (engagementByProfile.get(row.id)?.engagement ?? 0) * 10 : 0) +
+        (settings.leaderboard_uses_bookmarks ? (engagementByProfile.get(row.id)?.bookmarks ?? 0) * 15 : 0),
       status: row.status,
     }))
+    .filter((row) => (settings.leaderboard_strict_mode ? row.score > 0 : true))
     .sort((a, b) => b.score - a.score)
     .slice(0, 25);
 }
@@ -340,22 +350,39 @@ export async function getWithdrawalRequests(status?: "pending" | "approved" | "p
 export async function getEmailBlastHistory() {
   await requireAdmin();
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
-  const { data, error } = await supabase
+  const primaryResult = await supabase
     .from("email_blasts")
-    .select("id, subject, html_body, audience, created_at, profiles:created_by(display_name)")
+    .select("id, subject, html_body, audience, status, recipient_count, sent_at, failed_at, error_message, created_at, profiles:created_by(display_name)")
     .order("created_at", { ascending: false })
     .limit(100);
 
-  if (error) {
-    throw new Error(error.message);
+  if (primaryResult.error && !primaryResult.error.message.includes("status")) {
+    throw new Error(primaryResult.error.message);
   }
 
-  return (data ?? []).map((blast) => ({
+  const rows = primaryResult.error?.message.includes("status")
+    ? await supabase
+      .from("email_blasts")
+      .select("id, subject, html_body, audience, created_at, profiles:created_by(display_name)")
+      .order("created_at", { ascending: false })
+      .limit(100)
+    : primaryResult;
+
+  if (rows.error) {
+    throw new Error(rows.error.message);
+  }
+
+  return (rows.data ?? []).map((blast) => ({
     audience: blast.audience,
     bodyPreview: blast.html_body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 140),
     createdAt: new Date(blast.created_at),
     createdBy: relationDisplayName(blast.profiles),
+    errorMessage: "error_message" in blast ? (blast.error_message as string | null) : null,
+    failedAt: "failed_at" in blast && blast.failed_at ? new Date(blast.failed_at as string) : null,
     id: blast.id,
+    recipientCount: "recipient_count" in blast ? (blast.recipient_count as number) : 0,
+    sentAt: "sent_at" in blast && blast.sent_at ? new Date(blast.sent_at as string) : null,
+    status: "status" in blast ? (blast.status as string) : "draft",
     subject: blast.subject,
   }));
 }

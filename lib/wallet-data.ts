@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { createClient } from "@/lib/supabase/server";
 import type { WalletBreakdown } from "@/lib/wallet";
 
@@ -23,15 +24,10 @@ export async function getWalletPageData() {
     return null;
   }
 
-  const [ledgerResult, withdrawalResult, settingsResult] = await Promise.all([
+  const [ledgerResult, withdrawalResult, settings] = await Promise.all([
     supabase.from("credit_ledger").select("credits, source").eq("profile_id", user.id),
     supabase.from("withdrawals").select("amount_credits, status").eq("profile_id", user.id),
-    supabase
-      .from("platform_settings")
-      .select("sponsored_withdrawals_unlocked")
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    getPlatformSettings(),
   ]);
 
   if (ledgerResult.error) {
@@ -40,10 +36,6 @@ export async function getWalletPageData() {
 
   if (withdrawalResult.error) {
     throw new Error(withdrawalResult.error.message);
-  }
-
-  if (settingsResult.error) {
-    throw new Error(settingsResult.error.message);
   }
 
   const wallet: WalletBreakdown = ((ledgerResult.data ?? []) as LedgerRow[]).reduce(
@@ -66,7 +58,7 @@ export async function getWalletPageData() {
     .reduce((total, row) => total + row.amount_credits, 0);
 
   return {
-    adminSponsoredUnlocked: settingsResult.data?.sponsored_withdrawals_unlocked ?? false,
+    adminSponsoredUnlocked: settings.sponsored_withdrawals_unlocked,
     wallet,
   };
 }

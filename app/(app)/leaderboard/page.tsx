@@ -1,15 +1,17 @@
 import { Trophy } from "lucide-react";
-import { getLeaderboardRows, getOrCreatePlatformSettings } from "@/lib/admin";
+import { getLeaderboardRows } from "@/lib/admin";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
-  const [settings, rows] = await Promise.all([getOrCreatePlatformSettings(), getLeaderboardRows()]);
+  const settings = await getPlatformSettings();
+  const rows = await getLeaderboardRows(settings);
   const enabled = [
-    settings.leaderboardUsesReferrals ? "referrals" : null,
-    settings.leaderboardUsesEngagement ? "engagement" : null,
-    settings.leaderboardUsesBookmarks ? "bookmarks" : null,
-    settings.leaderboardUsesWatchTime ? "watch-time" : null,
+    settings.leaderboard_uses_referrals ? "referrals" : null,
+    settings.leaderboard_uses_engagement ? "engagement" : null,
+    settings.leaderboard_uses_bookmarks ? "bookmarks" : null,
+    settings.leaderboard_uses_watch_time ? "watch-time" : null,
   ].filter(Boolean);
 
   return (
@@ -17,7 +19,7 @@ export default async function LeaderboardPage() {
       <section className="glass-strong p-4 sm:p-5">
         <div className="flex items-center gap-3">
           <Trophy className="size-5 text-cyan-200" />
-          <p className="text-muted">{settings.leaderboardStrictMode ? "Strict" : "Flexible"} leaderboard mode</p>
+          <p className="text-muted">{settings.leaderboard_strict_mode ? "Strict" : "Flexible"} leaderboard mode</p>
         </div>
         <h1 className="mt-2 text-[28px] font-semibold leading-tight">Creator leaderboard</h1>
         <p className="mt-2 max-w-2xl leading-5 text-muted">Ranking currently weighs {enabled.join(", ") || "platform activity"}.</p>

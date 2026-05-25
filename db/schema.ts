@@ -2,6 +2,7 @@ import {
   boolean,
   integer,
   numeric,
+  primaryKey,
   pgEnum,
   pgTable,
   text,
@@ -207,6 +208,11 @@ export const emailBlasts = pgTable("email_blasts", {
   subject: text("subject").notNull(),
   htmlBody: text("html_body").notNull(),
   audience: notificationAudience("audience").notNull().default("all"),
+  status: text("status").notNull().default("draft"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  failedAt: timestamp("failed_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  recipientCount: integer("recipient_count").notNull().default(0),
   createdBy: uuid("created_by").references(() => profiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -231,3 +237,15 @@ export const auditLogs = pgTable("audit_logs", {
   metadata: text("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const notificationReads = pgTable(
+  "notification_reads",
+  {
+    notificationId: uuid("notification_id").notNull().references(() => platformNotifications.id, { onDelete: "cascade" }),
+    profileId: uuid("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.notificationId, table.profileId] }),
+  ],
+);

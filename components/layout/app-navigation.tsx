@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import type { NotificationItem } from "@/lib/notifications";
 
 type NavItem = {
   adminOnly?: boolean;
@@ -22,6 +24,8 @@ type NavItem = {
 
 type NavigationProps = {
   isAdmin?: boolean;
+  notifications?: NotificationItem[];
+  unreadCount?: number;
 };
 
 export const appNavigation: NavItem[] = [
@@ -56,7 +60,7 @@ export function AppBrand() {
   );
 }
 
-export function DesktopSidebar({ isAdmin }: NavigationProps) {
+export function DesktopSidebar({ isAdmin, notifications = [], unreadCount = 0 }: NavigationProps) {
   const pathname = usePathname();
 
   return (
@@ -83,6 +87,7 @@ export function DesktopSidebar({ isAdmin }: NavigationProps) {
           );
         })}
       </nav>
+      <NotificationBell notifications={notifications} unreadCount={unreadCount} />
     </aside>
   );
 }

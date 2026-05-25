@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
+import { sendGmailMessage } from "@/lib/email/gmail-smtp";
 import { requireAdmin } from "@/lib/admin";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -363,6 +364,7 @@ export async function updateLeaderboardSettingsAction(formData: FormData) {
     ? await supabase.from("platform_settings").update(values).eq("id", settingsId)
     : await supabase.from("platform_settings").insert(values);
   if (result.error) throw new Error(result.error.message);
+  revalidateTag("platform-settings", "max");
   revalidatePath("/admin/leaderboard");
   await writeAuditLog({ action: "admin.leaderboard.updated", actorId: admin.id, actorType: "admin", entityId: uuidPattern.test(settingsId) ? settingsId : null, entityType: "platform_settings", metadata: values });
   redirect("/admin/leaderboard?updated=leaderboard");
@@ -384,6 +386,7 @@ export async function updatePlatformSettingsAction(formData: FormData) {
     ? await supabase.from("platform_settings").update(values).eq("id", settingsId)
     : await supabase.from("platform_settings").insert(values);
   if (result.error) throw new Error(result.error.message);
+  revalidateTag("platform-settings", "max");
   revalidatePath("/admin/platform");
   await writeAuditLog({ action: "admin.platform.updated", actorId: admin.id, actorType: "admin", entityId: uuidPattern.test(settingsId) ? settingsId : null, entityType: "platform_settings", metadata: values });
   redirect("/admin/platform?updated=platform");
@@ -412,11 +415,78 @@ export async function createEmailBlastAction(formData: FormData) {
   const audience = textValue(formData, "audience") as "all" | "active" | "suspended";
   if (!subject || !htmlBody || !["all", "active", "suspended"].includes(audience)) redirect("/admin/platform?error=invalid_email");
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
-  const { data, error } = await supabase.from("email_blasts").insert({ audience, created_by: admin.id, html_body: htmlBody, subject }).select("id").maybeSingle();
+  const { data, error } = await supabase.from("email_blasts").insert({ audience, created_by: admin.id, html_body: htmlBody, status: "draft", subject }).select("id").maybeSingle();
   if (error) throw new Error(error.message);
   revalidatePath("/admin/platform");
   await writeAuditLog({ action: "admin.email_blast.created", actorId: admin.id, actorType: "admin", entityId: data?.id, entityType: "email_blast", metadata: { audience, subject } });
   redirect("/admin/platform?updated=email_blast");
+}
+
+export async function sendEmailBlastAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:email-blast-send:${admin.id}`, 5, 60 * 60 * 1000);
+  const blastId = textValue(formData, "blastId");
+  if (!uuidPattern.test(blastId)) redirect("/admin/email-blasts?error=invalid_blast");
+  if (!hasSupabaseAdminKey()) redirect("/admin/email-blasts?error=missing_service_role");
+
+  const supabase = createAdminClient();
+  const { data: blast, error: blastError } = await supabase
+    .from("email_blasts")
+    .select("id, subject, html_body, audience, status")
+    .eq("id", blastId)
+    .maybeSingle();
+  if (blastError || !blast) redirect("/admin/email-blasts?error=missing_blast");
+  if (blast.status === "sending") redirect("/admin/email-blasts?error=already_sending");
+
+  await supabase.from("email_blasts").update({ error_message: null, failed_at: null, status: "sending" }).eq("id", blastId);
+
+  try {
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, status")
+      .neq("status", "suspended");
+    if (profilesError) throw new Error(profilesError.message);
+
+    const eligibleIds = new Set(
+      (profiles ?? [])
+        .filter((profile) => blast.audience === "all" || profile.status === blast.audience)
+        .map((profile) => profile.id),
+    );
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (authError) throw new Error(authError.message);
+
+    const recipients = authUsers.users
+      .filter((user) => eligibleIds.has(user.id) && Boolean(user.email))
+      .map((user) => user.email!)
+      .filter((email, index, all) => all.indexOf(email) === index);
+
+    for (const email of recipients) {
+      await sendGmailMessage({ html: blast.html_body, subject: blast.subject, to: email });
+    }
+
+    await supabase
+      .from("email_blasts")
+      .update({ recipient_count: recipients.length, sent_at: new Date().toISOString(), status: "sent" })
+      .eq("id", blastId);
+    await writeAuditLog({
+      action: "admin.email_blast.sent",
+      actorId: admin.id,
+      actorType: "admin",
+      entityId: blastId,
+      entityType: "email_blast",
+      metadata: { audience: blast.audience, recipientCount: recipients.length },
+    });
+    revalidatePath("/admin/email-blasts");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email blast failed.";
+    await supabase
+      .from("email_blasts")
+      .update({ error_message: message, failed_at: new Date().toISOString(), status: "failed" })
+      .eq("id", blastId);
+    redirect(`/admin/email-blasts?error=${encodeURIComponent(message)}`);
+  }
+
+  redirect("/admin/email-blasts?updated=email_sent");
 }
 
 export async function createBadgeAction(formData: FormData) {

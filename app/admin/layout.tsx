@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { BadgeCheck, Bell, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { requireAdmin } from "@/lib/admin";
+import { getCurrentUserNotifications } from "@/lib/notifications";
 
 const adminNav = [
   { href: "/admin", icon: LayoutDashboard, label: "Overview" },
@@ -15,6 +17,7 @@ const adminNav = [
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const admin = await requireAdmin();
+  const notificationData = await getCurrentUserNotifications();
 
   return (
     <div className="min-h-screen text-[11px] text-white lg:pl-[284px]">
@@ -44,14 +47,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <a className="flex min-h-10 flex-1 items-center justify-center rounded-[5px] border border-white/10 bg-white/[0.055] px-3 text-center font-semibold text-cyan-100" href="/feed">
             Return to app
           </a>
-          <a
-            aria-label="Admin notifications"
-            className="grid size-10 place-items-center rounded-[5px] border border-white/10 bg-white/[0.055] text-cyan-100 transition hover:bg-white/10"
-            href="/admin/platform"
-            title="Notifications"
-          >
-            <Bell className="size-4" />
-          </a>
+          <NotificationBell notifications={notificationData.notifications} unreadCount={notificationData.unreadCount} />
         </div>
       </aside>
       <header className="sticky top-0 z-20 border-b border-white/10 bg-[#08101d]/92 px-4 py-3 backdrop-blur-xl lg:hidden">

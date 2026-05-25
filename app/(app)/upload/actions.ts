@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
@@ -85,18 +86,8 @@ export async function createPostAction(formData: FormData) {
     type === "image_audio"
       ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, "Audio file is required for image plus MP3 posts."), userId: user.id })
       : null;
-  const { data: latestSettings, error: settingsError } = await supabase
-    .from("platform_settings")
-    .select("post_approval_required")
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (settingsError) {
-    redirect(`/upload?error=${encodeURIComponent(settingsError.message)}`);
-  }
-
-  const status = latestSettings?.post_approval_required === false ? "published" : "pending";
+  const settings = await getPlatformSettings();
+  const status = settings.post_approval_required ? "pending" : "published";
   const { data: post, error: postError } = await supabase
     .from("posts")
     .insert({

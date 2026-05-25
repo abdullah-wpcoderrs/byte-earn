@@ -109,6 +109,24 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
+  const { data: platformSettings } = await supabase
+    .from("platform_settings")
+    .select("under_construction")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (
+    platformSettings?.under_construction &&
+    protectedRoutes.some((route) => isRoute(pathname, route)) &&
+    !isRoute(pathname, "/under-construction")
+  ) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/under-construction";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
   if (pathname === "/" && profile.status === "active") {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/feed";

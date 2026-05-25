@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
+import { getCurrentUserNotifications } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AuthenticatedLayout({ children }: { children: ReactNode }) {
@@ -11,5 +12,11 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
     : { data: null };
 
-  return <AppShell isAdmin={profile?.role === "admin"}>{children}</AppShell>;
+  const notificationData = await getCurrentUserNotifications();
+
+  return (
+    <AppShell isAdmin={profile?.role === "admin"} notifications={notificationData.notifications} unreadCount={notificationData.unreadCount}>
+      {children}
+    </AppShell>
+  );
 }

@@ -39,12 +39,12 @@ EMAIL_FROM=
 
 Recommended implementation:
 
-1. Extend `email_blasts` with delivery fields: `status`, `sent_at`, `failed_at`, `error_message`, `recipient_count`.
-2. Save blast drafts from `/admin/platform`.
-3. Show blast history in `/admin/email-blasts`.
-4. Send email from a server-only route or background job, not from a client component.
-5. Batch recipients by audience from `profiles`.
-6. Record audit logs for queued, sent, and failed blasts.
+1. `email_blasts` has delivery fields: `status`, `sent_at`, `failed_at`, `error_message`, `recipient_count`.
+2. Blast drafts are saved from `/admin/platform`.
+3. Blast history is shown in `/admin/email-blasts`.
+4. Sending is server-only through Gmail SMTP.
+5. Recipients are resolved from Supabase Auth users and filtered by `profiles.status`.
+6. Audit logs are recorded for created and sent blasts.
 
 ## In-App Notifications
 
@@ -52,14 +52,14 @@ Use `platform_notifications` for admin-created announcements.
 
 Recommended additions:
 
-1. Add `notification_reads`:
+1. `notification_reads` tracks:
    - `notification_id`
    - `profile_id`
    - `read_at`
-2. Add a notification bell for users and admins.
-3. Compute unread counts server-side.
-4. Filter notifications by `audience` and user profile status.
-5. Allow admins to see all notifications and users to see only matching audience rows.
+2. A notification bell is available for users and admins.
+3. Unread counts are computed server-side.
+4. Notifications are filtered by `audience` and user profile status.
+5. Users can mark notifications as read.
 
 ## Supabase Realtime Notifications
 
@@ -67,10 +67,10 @@ Realtime should be used for notification delivery, not authorization.
 
 Recommended implementation:
 
-1. Enable Realtime for `platform_notifications`.
-2. Subscribe in the notification bell client component.
-3. On insert, refresh unread count and show a toast.
-4. Keep RLS policies as the authority for which rows can be read.
+1. Realtime is enabled for `platform_notifications` in migration `0010_email_notifications.sql`.
+2. The notification bell subscribes in a client component.
+3. On insert, the UI refreshes unread count/list.
+4. RLS policies remain the authority for which rows can be read.
 5. For private per-user notifications later, add `profile_notifications` with `profile_id = auth.uid()` RLS.
 
 ## Badges

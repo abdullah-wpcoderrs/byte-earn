@@ -14,7 +14,7 @@ const criteria = [
 
 export default async function AdminLeaderboardPage() {
   const settings = await getOrCreatePlatformSettings();
-  const rows = await getLeaderboardRows();
+  const rows = await getLeaderboardRows(settings);
 
   return (
     <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
