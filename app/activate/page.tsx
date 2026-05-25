@@ -1,5 +1,6 @@
-import { CreditCard, ShieldCheck, Sparkles } from "lucide-react";
+import { CreditCard, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
+import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 import { signupFeeNaira } from "@/lib/config/pricing";
 import { createClient } from "@/lib/supabase/server";
 
@@ -39,9 +40,7 @@ export default async function ActivatePage() {
     <main className="grid min-h-screen place-items-center px-4 py-8 text-[11px] text-white">
       <section className="glass-strong w-full max-w-md p-5">
         <div className="mb-5 flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-[5px] border border-cyan-200/20 bg-cyan-300/10">
-            <Sparkles className="size-5 text-cyan-200" />
-          </div>
+          <ByteEarnLogo className="size-10 shrink-0" />
           <div>
             <p className="text-base font-semibold">Activate byte-earn</p>
             <p className="text-muted">One-time network access payment</p>

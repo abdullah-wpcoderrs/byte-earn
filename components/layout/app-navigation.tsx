@@ -5,7 +5,6 @@ import {
   Home,
   LayoutDashboard,
   LogOut,
-  Sparkles,
   SquarePlus,
   Trophy,
   UserRound,
@@ -16,6 +15,7 @@ import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
 import { useCallback, useState } from "react";
 import { signOutAction } from "@/app/auth/actions";
+import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Modal } from "@/components/ui/modal";
 import { UploadPostForm } from "@/components/upload/upload-post-form";
@@ -56,9 +56,7 @@ function visibleNavigation(isAdmin?: boolean) {
 export function AppBrand() {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex size-10 items-center justify-center rounded-[5px] border border-cyan-200/20 bg-cyan-300/10">
-        <Sparkles className="size-5 text-cyan-200" />
-      </div>
+      <ByteEarnLogo className="size-10 shrink-0" />
       <div>
         <p className="text-base font-semibold leading-none">byte-earn</p>
         <p className="text-muted">Creator network</p>

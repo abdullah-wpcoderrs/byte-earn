@@ -1,9 +1,10 @@
 "use client";
 
-import { BadgeCheck, Bell, Coins, Gauge, LayoutDashboard, MailPlus, Menu, ShieldCheck, Trophy, UsersRound, WalletCards, X } from "lucide-react";
+import { BadgeCheck, Coins, Gauge, LayoutDashboard, MailPlus, Menu, ShieldCheck, Trophy, UsersRound, WalletCards, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import type { NotificationItem } from "@/lib/notifications";
 
@@ -47,8 +48,9 @@ export function AdminMobileNav({ adminLabel, notifications, unreadCount }: Admin
             <Menu className="size-5" />
           </button>
 
-          <Link className="min-w-0 text-base font-semibold leading-none" href="/admin" prefetch={false}>
-            byte-earn admin
+          <Link className="flex min-w-0 items-center gap-2 text-base font-semibold leading-none" href="/admin" prefetch={false}>
+            <ByteEarnLogo className="size-8 shrink-0" aria-hidden="true" />
+            <span className="truncate">byte-earn admin</span>
           </Link>
 
           <Link className="rounded-[5px] border border-white/10 px-3 py-2 font-semibold text-cyan-100" href="/feed" prefetch={false}>
@@ -66,9 +68,7 @@ export function AdminMobileNav({ adminLabel, notifications, unreadCount }: Admin
           >
             <div className="flex items-center justify-between gap-3">
               <Link className="flex min-w-0 items-center gap-3" href="/admin" onClick={() => setOpen(false)} prefetch={false}>
-                <div className="grid size-10 shrink-0 place-items-center rounded-[5px] border border-cyan-200/20 bg-cyan-300/10">
-                  <Bell className="size-5 text-cyan-200" />
-                </div>
+                <ByteEarnLogo className="size-10 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-base font-semibold leading-none">byte-earn admin</p>
                   <p className="mt-1 truncate text-muted">{adminLabel}</p>

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { signInAction, signUpAction } from "@/app/auth/actions";
+import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 
 const activationSteps = [
   "Pay one-time access fee",
@@ -226,9 +227,7 @@ export default function AuthGatewayPage() {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex size-10 items-center justify-center rounded-[5px] border border-cyan-200/20 bg-cyan-300/10 backdrop-blur">
-        <Sparkles className="size-5 text-cyan-200" />
-      </div>
+      <ByteEarnLogo className="size-10 shrink-0" />
       <div>
         <p className="text-base font-semibold leading-none">byte-earn</p>
         <p className="text-slate-300">Creator earning network</p>

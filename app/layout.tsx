@@ -7,6 +7,12 @@ export const metadata: Metadata = {
   title: "byte-earn | Social Earning Network",
   description:
     "A premium AI-driven social media monetization platform for creators, referrals, sponsored tasks, and wallet withdrawals.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default function RootLayout({

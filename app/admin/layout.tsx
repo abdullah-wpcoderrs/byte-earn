@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { BadgeCheck, Bell, Coins, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { BadgeCheck, Coins, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
+import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { requireAdmin } from "@/lib/admin";
 import { getCurrentUserNotifications } from "@/lib/notifications";
@@ -26,9 +27,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     <div className="min-h-screen text-[11px] text-white lg:pl-[284px]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[284px] border-r border-white/10 bg-[#08101d]/92 p-4 backdrop-blur-xl lg:flex lg:flex-col">
         <a className="flex items-center gap-3" href="/admin">
-          <div className="flex size-10 items-center justify-center rounded-[5px] border border-cyan-200/20 bg-cyan-300/10">
-            <Bell className="size-5 text-cyan-200" />
-          </div>
+          <ByteEarnLogo className="size-10 shrink-0" />
           <div>
             <p className="text-base font-semibold leading-none">byte-earn admin</p>
             <p className="text-muted">{adminLabel}</p>
