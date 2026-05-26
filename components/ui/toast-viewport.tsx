@@ -42,8 +42,9 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
     const copy: Record<string, { body: string; title: string }> = {
       invalid_action: { body: "That action is not available for this item.", title: "Action unavailable" },
       invalid_badge: { body: "Badge name and description are required.", title: "Badge not created" },
+      invalid_blast: { body: "This email blast id is invalid.", title: "Email not sent" },
       invalid_credits: { body: "Enter a credit amount greater than zero.", title: "Invalid credit amount" },
-      invalid_email: { body: "Email subject, body, and audience are required.", title: "Email blast not saved" },
+      invalid_email: { body: "Check the email fields and try again.", title: "Invalid email details" },
       invalid_finance_settings: { body: "Enter positive values for credits, USD, and NGN rate.", title: "Rates not saved" },
       invalid_notification: { body: "Notification title, body, and audience are required.", title: "Notification not sent" },
       invalid_audio_file: { body: "Audio posts require an MP3 audio file.", title: "Audio file not supported" },
@@ -53,15 +54,21 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
       invalid_reward: { body: "Choose a valid reward and non-negative credit amount.", title: "Reward not saved" },
       invalid_transition: { body: "This item cannot move to that state.", title: "Invalid review state" },
       audio_required: { body: "Add an audio file for image plus MP3 posts.", title: "Audio file required" },
+      file_too_large: { body: "This file is above the platform upload limit set by admin.", title: "File too large" },
       media_required: { body: "Add a media file before submitting your post.", title: "Media file required" },
       missing_reward: { body: "This reward rule no longer exists.", title: "Reward not found" },
       invalid_withdrawal: { body: "This withdrawal id is invalid.", title: "Review failed" },
       missing_post: { body: "This post no longer exists.", title: "Post not found" },
+      already_sending: { body: "This email blast is already sending.", title: "Email already in progress" },
+      missing_blast: { body: "This email blast no longer exists.", title: "Email not found" },
+      missing_name: { body: "Enter a display name for this user.", title: "User not created" },
+      missing_service_role: { body: "Configure the Supabase service role key before sending email blasts.", title: "Email not sent" },
       missing_withdrawal: { body: "This withdrawal no longer exists.", title: "Withdrawal not found" },
       no_users: { body: "Select at least one user before applying a bulk action.", title: "No users selected" },
       reward_above_maximum: { body: "This credit amount is above the configured admin reward limit.", title: "Reward limit exceeded" },
       reward_below_minimum: { body: "This credit amount is below the configured admin reward minimum.", title: "Reward below minimum" },
       reward_disabled: { body: "This reward action is currently disabled by admin configuration.", title: "Reward disabled" },
+      weak_password: { body: "Use a password with at least 8 characters.", title: "Password too weak" },
     };
     const selected = copy[error] ?? { body: error.replace(/_/g, " "), title: "Request failed" };
     messages.push({ body: selected.body, id: `error:${error}`, title: selected.title, tone: "warning" });
@@ -86,6 +93,7 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
       moderation: { body: "The moderation decision was saved.", title: "Moderation updated" },
       notification: { body: "The platform notification was created.", title: "Notification created" },
       email_blast: { body: "The email blast was saved.", title: "Email blast saved" },
+      email_sent: { body: "The email blast was sent to eligible recipients.", title: "Email sent" },
       badge: { body: "The custom badge was created.", title: "Badge created" },
       payment_verified: { body: "Payment verified. Complete onboarding to enter the app.", title: "Payment verified" },
       platform: { body: "Platform settings were saved.", title: "Platform updated" },
@@ -94,6 +102,7 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
       finance_settings: { body: "Credit conversion rates were saved.", title: "Rates updated" },
       reward_rule: { body: "Reward rule was saved.", title: "Reward updated" },
       users: { body: "The selected user records were updated.", title: "Users updated" },
+      user_created: { body: "The user account was created.", title: "User created" },
       withdrawal: { body: "The withdrawal review was saved.", title: "Withdrawal updated" },
     };
     const selected = copy[updated] ?? { body: `${updated.replace(/_/g, " ")} was updated successfully.`, title: "Saved" };
@@ -126,8 +135,9 @@ export function ToastViewport() {
   const messages = useMemo(() => getToastMessages(searchParams), [searchParams]);
   const handledKeyRef = useRef("");
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [queuedMessages, setQueuedMessages] = useState<ToastMessage[]>([]);
 
-  const visible = messages.filter((message) => !dismissed.includes(message.id));
+  const visible = queuedMessages.filter((message) => !dismissed.includes(message.id));
 
   useEffect(() => {
     const toastKeys = ["admin", "auth", "auth_error", "error", "onboarding", "payment_error", "updated", "withdrawal", "withdrawal_error"];
@@ -137,13 +147,27 @@ export function ToastViewport() {
       return;
     }
 
+    setQueuedMessages((current) => {
+      const next = [...current];
+      messages.forEach((message) => {
+        const existingIndex = next.findIndex((queued) => queued.id === message.id);
+        if (existingIndex >= 0) {
+          next[existingIndex] = message;
+        } else {
+          next.push(message);
+        }
+      });
+      return next.slice(-4);
+    });
+    setDismissed((current) => current.filter((id) => !messages.some((message) => message.id === id)));
+
     const nextParams = new URLSearchParams(searchParams.toString());
     toastKeys.forEach((key) => nextParams.delete(key));
     handledKeyRef.current = handledKey;
 
     const nextUrl = nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname;
     window.setTimeout(() => router.replace(nextUrl, { scroll: false }), 50);
-  }, [messages.length, pathname, router, searchParams]);
+  }, [messages, messages.length, pathname, router, searchParams]);
 
   if (visible.length === 0) {
     return null;

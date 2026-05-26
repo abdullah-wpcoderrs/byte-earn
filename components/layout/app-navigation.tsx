@@ -11,9 +11,9 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { signOutAction } from "@/app/auth/actions";
 import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -141,6 +141,7 @@ export function MobileHeader({ notifications = [], unreadCount = 0 }: Navigation
 
 export function MobileBottomNav({ isAdmin }: NavigationProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [uploadOpen, setUploadOpen] = useState(false);
   const openUploadModal = useCallback(() => {
     setUploadOpen(true);
@@ -148,6 +149,14 @@ export function MobileBottomNav({ isAdmin }: NavigationProps) {
   const items = visibleNavigation(isAdmin)
     .filter((item) => item.href !== "/admin")
     .slice(0, 5);
+
+  useEffect(() => {
+    const updated = searchParams.get("updated");
+    if (updated === "post_published" || updated === "post_submitted") {
+      const timeout = window.setTimeout(() => setUploadOpen(false), 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [searchParams]);
 
   return (
     <>

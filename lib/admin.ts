@@ -23,6 +23,7 @@ export type AdminUserFilters = {
 
 export type AdminUserRow = Awaited<ReturnType<typeof getAdminUsers>>["rows"][number];
 export type AdminRewardRule = Awaited<ReturnType<typeof getRewardRules>>[number];
+export type WithdrawalReviewScope = "history" | "requests";
 
 function relationDisplayName(value: unknown) {
   if (Array.isArray(value)) {
@@ -359,25 +360,50 @@ export async function getLeaderboardRows(settings: PlatformSettings = defaultPla
     .slice(0, 25);
 }
 
-export async function getWithdrawalRequests(status?: "pending" | "approved" | "paid" | "rejected") {
+export async function getWithdrawalRequests({
+  scope = "requests",
+  status,
+}: {
+  scope?: WithdrawalReviewScope;
+  status?: "pending" | "approved" | "paid" | "rejected";
+} = {}) {
   await requireAdmin();
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const baseSelect = "id, profile_id, status, amount_credits, amount_naira, bank_name, account_number, account_name, created_at, reviewed_at, review_note, profiles:profile_id(display_name)";
   let query = supabase
     .from("withdrawals")
-    .select("id, profile_id, status, amount_credits, amount_naira, bank_name, account_number, account_name, created_at, profiles:profile_id(display_name)")
+    .select(baseSelect)
     .order("created_at", { ascending: false })
     .limit(60);
 
   if (status) {
     query = query.eq("status", status);
+  } else if (scope === "history") {
+    query = query.in("status", ["paid", "rejected"]);
+  } else {
+    query = query.in("status", ["pending", "approved"]);
   }
 
-  const { data, error } = await query;
+  const primaryResult = await query;
+  const rows = primaryResult.error?.message.includes("reviewed_at") || primaryResult.error?.message.includes("review_note")
+    ? await supabase
+      .from("withdrawals")
+      .select("id, profile_id, status, amount_credits, amount_naira, bank_name, account_number, account_name, created_at, profiles:profile_id(display_name)")
+      .order("created_at", { ascending: false })
+      .limit(60)
+    : primaryResult;
+
+  const { data, error } = rows;
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data ?? []).map((row) => ({
+  const scopedRows = (data ?? []).filter((row) => {
+    if (status) return row.status === status;
+    return scope === "history" ? ["paid", "rejected"].includes(row.status) : ["pending", "approved"].includes(row.status);
+  });
+
+  return scopedRows.map((row) => ({
     accountName: row.account_name,
     accountNumber: row.account_number,
     amountCredits: row.amount_credits,
@@ -387,9 +413,47 @@ export async function getWithdrawalRequests(status?: "pending" | "approved" | "p
     displayName: relationDisplayName(row.profiles),
     id: row.id,
     profileId: row.profile_id,
-    reviewNote: null as string | null,
-    reviewedAt: null as Date | null,
+    reviewNote: "review_note" in row ? row.review_note as string | null : null,
+    reviewedAt: "reviewed_at" in row && row.reviewed_at ? new Date(row.reviewed_at as string) : null,
     status: row.status,
+  }));
+}
+
+export async function getAuditLogRows() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data, error } = await supabase
+    .from("audit_logs")
+    .select("id, action, actor_id, actor_type, entity_type, entity_id, metadata, created_at, profiles:actor_id(display_name)")
+    .order("created_at", { ascending: false })
+    .limit(120);
+
+  if (error) {
+    const missingAuditTable =
+      error.code === "PGRST205" ||
+      error.message.includes("audit_logs") && (
+        error.message.includes("schema cache") ||
+        error.message.includes("does not exist") ||
+        error.message.includes("Could not find the table")
+      );
+
+    if (missingAuditTable) {
+      return [];
+    }
+
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((row) => ({
+    action: row.action,
+    actorId: row.actor_id as string | null,
+    actorName: relationDisplayName(row.profiles),
+    actorType: row.actor_type as string,
+    createdAt: new Date(row.created_at),
+    entityId: row.entity_id as string | null,
+    entityType: row.entity_type,
+    id: row.id,
+    metadata: row.metadata as string | null,
   }));
 }
 

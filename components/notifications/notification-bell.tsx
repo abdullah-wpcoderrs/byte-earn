@@ -15,8 +15,9 @@ export function NotificationBell({ notifications, panelPlacement = "sidebar", un
   const [open, setOpen] = useState(false);
   const panelPosition =
     panelPlacement === "mobile-header"
-      ? "absolute right-0 top-12 z-50"
+      ? "fixed left-4 right-4 top-[72px] z-[70] w-auto"
       : "fixed bottom-4 left-[276px] z-50 max-lg:absolute max-lg:bottom-12 max-lg:left-auto max-lg:right-0";
+  const panelWidth = panelPlacement === "mobile-header" ? "" : "w-[min(320px,calc(100vw-2rem))]";
 
   return (
     <div className="relative">
@@ -35,7 +36,7 @@ export function NotificationBell({ notifications, panelPlacement = "sidebar", un
       </button>
 
       {open ? (
-        <div className={`${panelPosition} grid w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-[5px] border border-white/10 bg-[#0d182b] shadow-2xl`}>
+        <div className={`${panelPosition} ${panelWidth} grid overflow-hidden rounded-[5px] border border-white/10 bg-[#0d182b] shadow-2xl`}>
           <div className="border-b border-white/10 px-3 py-2 font-semibold text-slate-100">Notifications</div>
           <div className="app-scrollbar max-h-80 overflow-y-auto">
             {notifications.map((notification) => (

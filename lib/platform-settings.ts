@@ -10,6 +10,7 @@ export type PlatformSettings = {
   leaderboard_uses_engagement: boolean;
   leaderboard_uses_referrals: boolean;
   leaderboard_uses_watch_time: boolean;
+  max_upload_size_mb: number;
   post_approval_required: boolean;
   sponsored_withdrawals_unlocked: boolean;
   under_construction: boolean;
@@ -24,6 +25,7 @@ export const defaultPlatformSettings: PlatformSettings = {
   leaderboard_uses_engagement: true,
   leaderboard_uses_referrals: true,
   leaderboard_uses_watch_time: false,
+  max_upload_size_mb: 50,
   post_approval_required: true,
   sponsored_withdrawals_unlocked: false,
   under_construction: false,

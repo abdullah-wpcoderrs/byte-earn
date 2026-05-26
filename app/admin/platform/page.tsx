@@ -57,6 +57,7 @@ export default async function AdminPlatformPage() {
           </label>
         ))}
         <TextInput defaultValue={settings.daily_watch_limit_seconds} label="Daily watch limit seconds" name="dailyWatchLimitSeconds" inputMode="numeric" />
+        <TextInput defaultValue={settings.max_upload_size_mb ?? 50} label="Max upload size MB" max={100} min={1} name="maxUploadSizeMb" inputMode="numeric" />
         <Button className="lg:col-span-2" icon={<Save className="size-4" />} type="submit">
           Save platform settings
         </Button>

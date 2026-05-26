@@ -440,6 +440,7 @@ export async function updatePlatformSettingsAction(formData: FormData) {
   const settingsId = textValue(formData, "settingsId");
   const values = {
     daily_watch_limit_seconds: Math.max(60, intValue(formData, "dailyWatchLimitSeconds")),
+    max_upload_size_mb: Math.min(100, Math.max(1, intValue(formData, "maxUploadSizeMb"))),
     post_approval_required: formData.get("postApprovalRequired") === "on",
     sponsored_withdrawals_unlocked: formData.get("sponsoredWithdrawalsUnlocked") === "on",
     under_construction: formData.get("underConstruction") === "on",
@@ -660,7 +661,7 @@ export async function createBadgeAction(formData: FormData) {
   const imageFile = fileValue(formData, "imageFile");
   const allowedImageTypes = new Set(["image/gif", "image/jpeg", "image/png", "image/svg+xml", "image/webp"]);
   if (!name || !description || !imageFile || !allowedImageTypes.has(imageFile.type) || imageFile.size > 5 * 1024 * 1024) {
-    redirect("/admin/platform?error=invalid_badge");
+    redirect("/admin/badges?error=invalid_badge");
   }
 
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
@@ -673,7 +674,7 @@ export async function createBadgeAction(formData: FormData) {
   });
 
   if (upload.error) {
-    redirect(`/admin/platform?error=${encodeURIComponent(upload.error.message)}`);
+    redirect(`/admin/badges?error=${encodeURIComponent(upload.error.message)}`);
   }
 
   const { data: publicImage } = supabase.storage.from("badge-images").getPublicUrl(imagePath);
@@ -683,7 +684,8 @@ export async function createBadgeAction(formData: FormData) {
     .select("id")
     .maybeSingle();
   if (error) throw new Error(error.message);
-  revalidatePath("/admin/platform");
+  revalidatePath("/admin/badges");
+  revalidatePath("/admin");
   await writeAuditLog({ action: "admin.badge.created", actorId: admin.id, actorType: "admin", entityId: data?.id, entityType: "badge", metadata: { color, hasImage: true, name } });
-  redirect("/admin/platform?updated=badge");
+  redirect("/admin/badges?updated=badge");
 }

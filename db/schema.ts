@@ -220,6 +220,7 @@ export const platformSettings = pgTable("platform_settings", {
   underConstruction: boolean("under_construction").notNull().default(false),
   sponsoredWithdrawalsUnlocked: boolean("sponsored_withdrawals_unlocked").notNull().default(false),
   dailyWatchLimitSeconds: integer("daily_watch_limit_seconds").notNull().default(1800),
+  maxUploadSizeMb: integer("max_upload_size_mb").notNull().default(50),
   leaderboardStrictMode: boolean("leaderboard_strict_mode").notNull().default(true),
   leaderboardUsesReferrals: boolean("leaderboard_uses_referrals").notNull().default(true),
   leaderboardUsesEngagement: boolean("leaderboard_uses_engagement").notNull().default(true),

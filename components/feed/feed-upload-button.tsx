@@ -1,8 +1,8 @@
 "use client";
 
 import { Upload } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { UploadPostForm } from "@/components/upload/upload-post-form";
 
@@ -13,7 +13,16 @@ type FeedUploadButtonProps = {
 
 export function FeedUploadButton({ compact = false, defaultOpen = false }: FeedUploadButtonProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    const updated = searchParams.get("updated");
+    if (updated === "post_published" || updated === "post_submitted") {
+      const timeout = window.setTimeout(() => setOpen(false), 0);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [searchParams]);
 
   function closeModal() {
     setOpen(false);

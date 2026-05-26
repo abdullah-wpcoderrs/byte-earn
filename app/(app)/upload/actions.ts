@@ -47,9 +47,13 @@ function assertFile(file: File | null, target: "feed" | "upload", message: strin
   return file;
 }
 
-function assertAcceptedFile(file: File, target: "feed" | "upload", category: "audio" | "image" | "video") {
+function assertAcceptedFile(file: File, target: "feed" | "upload", category: "audio" | "image" | "video", maxUploadSizeBytes: number) {
   const type = file.type.toLowerCase();
   const name = file.name.toLowerCase();
+
+  if (file.size > maxUploadSizeBytes) {
+    redirectWithError(target, "file_too_large");
+  }
 
   if (category === "image" && !type.startsWith("image/")) {
     redirectWithError(target, "invalid_media_file");
@@ -115,18 +119,20 @@ export async function createPostAction(formData: FormData) {
     redirectWithError(target, "invalid_post_type");
   }
 
+  const settings = await getPlatformSettings();
+  const maxUploadSizeMb = Math.min(100, Math.max(1, settings.max_upload_size_mb ?? 50));
+  const maxUploadSizeBytes = maxUploadSizeMb * 1024 * 1024;
   const mediaFile = assertFile(optionalFile(formData, "mediaFile"), target, "media_required");
   const audioFile = optionalFile(formData, "audioFile");
   const mediaBucket = type === "video_text" ? "post-videos" : "post-images";
-  assertAcceptedFile(mediaFile, target, type === "video_text" ? "video" : "image");
+  assertAcceptedFile(mediaFile, target, type === "video_text" ? "video" : "image", maxUploadSizeBytes);
   if (audioFile) {
-    assertAcceptedFile(audioFile, target, "audio");
+    assertAcceptedFile(audioFile, target, "audio", maxUploadSizeBytes);
   }
   const mediaUrl = await uploadPublicFile({ bucket: mediaBucket, file: mediaFile, target, userId: user.id });
   const audioUrl = type === "image_audio"
     ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, target, "audio_required"), target, userId: user.id })
     : null;
-  const settings = await getPlatformSettings();
   const status = settings.post_approval_required ? "pending" : "published";
   const { data: post, error: postError } = await supabase
     .from("posts")

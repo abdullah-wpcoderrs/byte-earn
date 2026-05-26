@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Coins, Gauge, LayoutDashboard, MailPlus, Menu, ShieldCheck, Trophy, UsersRound, WalletCards, X } from "lucide-react";
+import { BadgeCheck, Coins, FileClock, Gauge, LayoutDashboard, MailPlus, Menu, ShieldCheck, Trophy, UsersRound, WalletCards, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -18,6 +18,7 @@ const adminNav = [
   { href: "/admin/platform", icon: Gauge, label: "Platform" },
   { href: "/admin/email-blasts", icon: MailPlus, label: "Emails" },
   { href: "/admin/badges", icon: BadgeCheck, label: "Badges" },
+  { href: "/admin/audit", icon: FileClock, label: "Audit" },
 ];
 
 type AdminMobileNavProps = {
@@ -87,7 +88,7 @@ export function AdminMobileNav({ adminLabel, notifications, unreadCount }: Admin
               </button>
             </div>
 
-            <nav className="mt-6 grid gap-2" aria-label="Admin navigation">
+            <nav className="app-scrollbar mt-6 grid min-h-0 gap-2 overflow-y-auto pr-1" aria-label="Admin navigation">
               {adminNav.map((item) => {
                 const active = isActive(pathname, item.href);
 

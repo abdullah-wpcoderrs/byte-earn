@@ -23,6 +23,20 @@ export async function writeAuditLog(input: AuditInput) {
   });
 
   if (error) {
+    const recoverableSchemaMiss =
+      error.code === "PGRST205" ||
+      error.code === "42P01" ||
+      error.message.includes("audit_logs") && (
+        error.message.includes("schema cache") ||
+        error.message.includes("does not exist") ||
+        error.message.includes("Could not find the table")
+      );
+
+    if (recoverableSchemaMiss) {
+      console.warn("Audit log skipped because audit_logs is not available:", error.message);
+      return;
+    }
+
     throw new Error(error.message);
   }
 }

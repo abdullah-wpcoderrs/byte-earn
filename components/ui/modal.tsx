@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Button } from "./button";
 import { cn } from "./utils";
@@ -12,11 +15,11 @@ type ModalProps = {
 };
 
 export function Modal({ children, className, onClose, open, title }: ModalProps) {
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/78 px-4 py-6 backdrop-blur-sm" onClick={onClose}>
       <section className={cn("glass-strong flex max-h-[calc(100svh-3rem)] w-full max-w-md flex-col overflow-hidden p-4", className)} onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
@@ -25,6 +28,7 @@ export function Modal({ children, className, onClose, open, title }: ModalProps)
         </div>
         <div className="app-scrollbar min-h-0 overflow-y-auto pr-1">{children}</div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

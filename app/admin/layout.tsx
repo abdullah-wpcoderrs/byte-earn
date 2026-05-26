@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BadgeCheck, Coins, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { BadgeCheck, Coins, FileClock, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
 import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -16,6 +16,7 @@ const adminNav = [
   { href: "/admin/platform", icon: Gauge, label: "Platform" },
   { href: "/admin/email-blasts", icon: MailPlus, label: "Emails" },
   { href: "/admin/badges", icon: BadgeCheck, label: "Badges" },
+  { href: "/admin/audit", icon: FileClock, label: "Audit" },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -26,14 +27,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   return (
     <div className="min-h-screen text-[11px] text-white lg:pl-[284px]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[284px] border-r border-white/10 bg-[#08101d]/92 p-4 backdrop-blur-xl lg:flex lg:flex-col">
-        <a className="flex items-center gap-3" href="/admin">
+        <a className="flex shrink-0 items-center gap-3" href="/admin">
           <ByteEarnLogo className="size-10 shrink-0" />
           <div>
             <p className="text-base font-semibold leading-none">byte-earn admin</p>
             <p className="text-muted">{adminLabel}</p>
           </div>
         </a>
-        <nav className="mt-8 flex flex-1 flex-col gap-2">
+        <nav className="app-scrollbar mt-8 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {adminNav.map((item) => (
             <a
               className="flex min-h-11 items-center gap-3 rounded-[5px] px-3 font-medium text-slate-300 transition hover:bg-white/8 hover:text-white"
@@ -45,7 +46,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             </a>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="mt-4 flex shrink-0 items-center gap-2">
           <a className="flex min-h-10 flex-1 items-center justify-center rounded-[5px] border border-white/10 bg-white/[0.055] px-3 text-center font-semibold text-cyan-100" href="/feed">
             Return to app
           </a>
