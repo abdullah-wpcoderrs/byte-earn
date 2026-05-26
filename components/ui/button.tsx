@@ -3,7 +3,7 @@ import { cn } from "./utils";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   icon?: ReactNode;
 };

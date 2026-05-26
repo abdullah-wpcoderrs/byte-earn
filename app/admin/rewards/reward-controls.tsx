@@ -1,13 +1,14 @@
 "use client";
 
 import { Coins, Pencil, Save, Settings2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   updateFinanceSettingsAction,
   updateRewardRuleAction,
 } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { SubmitButton } from "@/components/ui/submit-button";
 import type { FinanceSettings } from "@/lib/finance-settings";
 import { formatNaira, formatUsd, getNgnPerCredit, getUsdPerCredit } from "@/lib/money";
 
@@ -31,11 +32,14 @@ type RewardControlsProps = {
 export function RewardControls({ financeSettings, rules }: RewardControlsProps) {
   const [selectedRule, setSelectedRule] = useState<RewardRule | null>(null);
   const [financeOpen, setFinanceOpen] = useState(false);
-  const conversionRate = {
-    creditsPerUnit: financeSettings.creditsPerUnit,
-    ngnPerUsd: financeSettings.ngnPerUsd,
-    usdPerUnit: financeSettings.usdPerUnit,
-  };
+  const conversionRate = useMemo(
+    () => ({
+      creditsPerUnit: financeSettings.creditsPerUnit,
+      ngnPerUsd: financeSettings.ngnPerUsd,
+      usdPerUnit: financeSettings.usdPerUnit,
+    }),
+    [financeSettings.creditsPerUnit, financeSettings.ngnPerUsd, financeSettings.usdPerUnit],
+  );
   const usdPerCredit = getUsdPerCredit(conversionRate);
   const ngnPerCredit = getNgnPerCredit(conversionRate);
 
@@ -105,7 +109,7 @@ export function RewardControls({ financeSettings, rules }: RewardControlsProps) 
       </section>
 
       <Modal onClose={() => setSelectedRule(null)} open={Boolean(selectedRule)} title={selectedRule ? `Edit ${selectedRule.label}` : "Edit reward"}>
-        {selectedRule ? <RewardRuleForm rule={selectedRule} /> : null}
+        {selectedRule ? <RewardRuleForm key={selectedRule.id} rule={selectedRule} /> : null}
       </Modal>
 
       <Modal onClose={() => setFinanceOpen(false)} open={financeOpen} title="Edit credit conversion">
@@ -190,13 +194,6 @@ function RewardRuleForm({ rule }: { rule: RewardRule }) {
   const [maxCredits, setMaxCredits] = useState(rule.maxCreditsPerAction === null ? "" : String(rule.maxCreditsPerAction));
   const [hasNoMaximum, setHasNoMaximum] = useState(rule.maxCreditsPerAction === null);
 
-  useEffect(() => {
-    setCredits(String(rule.credits));
-    setMinCredits(String(rule.minCreditsPerAction));
-    setMaxCredits(rule.maxCreditsPerAction === null ? "" : String(rule.maxCreditsPerAction));
-    setHasNoMaximum(rule.maxCreditsPerAction === null);
-  }, [rule]);
-
   return (
     <form action={updateRewardRuleAction} className="grid gap-3">
       <input name="ruleId" type="hidden" value={rule.id} />
@@ -211,9 +208,9 @@ function RewardRuleForm({ rule }: { rule: RewardRule }) {
         <span className="font-medium text-slate-200">Enabled</span>
         <input className="size-4 accent-cyan-300" defaultChecked={rule.enabled} name="enabled" type="checkbox" />
       </label>
-      <Button icon={<Save className="size-4" />} type="submit">
+      <SubmitButton icon={<Save className="size-4" />} pendingLabel="Saving reward..." type="submit">
         Save reward
-      </Button>
+      </SubmitButton>
     </form>
   );
 }
@@ -228,9 +225,9 @@ function FinanceSettingsForm({ financeSettings }: { financeSettings: FinanceSett
       <NumericField label="Credits per unit" name="creditsPerUnit" onChange={setCreditsPerUnit} value={creditsPerUnit} />
       <DecimalField label="USD per unit" name="usdPerUnit" onChange={setUsdPerUnit} value={usdPerUnit} />
       <DecimalField label="NGN per USD" name="ngnPerUsd" onChange={setNgnPerUsd} value={ngnPerUsd} />
-      <Button icon={<Save className="size-4" />} type="submit">
+      <SubmitButton icon={<Save className="size-4" />} pendingLabel="Saving rate..." type="submit">
         Save conversion rate
-      </Button>
+      </SubmitButton>
     </form>
   );
 }

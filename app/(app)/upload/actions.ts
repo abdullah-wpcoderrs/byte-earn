@@ -120,7 +120,7 @@ export async function createPostAction(formData: FormData) {
   }
 
   const settings = await getPlatformSettings();
-  const maxUploadSizeMb = Math.min(100, Math.max(1, settings.max_upload_size_mb ?? 50));
+  const maxUploadSizeMb = Math.max(1, settings.max_upload_size_mb ?? 50);
   const maxUploadSizeBytes = maxUploadSizeMb * 1024 * 1024;
   const mediaFile = assertFile(optionalFile(formData, "mediaFile"), target, "media_required");
   const audioFile = optionalFile(formData, "audioFile");

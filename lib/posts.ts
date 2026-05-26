@@ -10,10 +10,18 @@ export type FeedComment = {
   id: string;
 };
 
+export type UserBadge = {
+  color: string;
+  id: string;
+  imageUrl: string | null;
+  name: string;
+};
+
 export type FeedPost = {
   audioUrl: string | null;
   author: string;
   authorId: string;
+  authorBadges: UserBadge[];
   avatar: string;
   bookmarkedByViewer: boolean;
   bookmarksCount: number;
@@ -84,6 +92,23 @@ type ProfileRow = {
   referral_count: number;
 };
 
+type ProfileBadgeRow = {
+  badge_id: string;
+  badges:
+    | {
+        color: string;
+        image_url: string | null;
+        name: string;
+      }
+    | Array<{
+        color: string;
+        image_url: string | null;
+        name: string;
+      }>
+    | null;
+  profile_id: string;
+};
+
 function initialsFor(name: string | null, fallback: string) {
   const source = name?.trim() || fallback;
   return source
@@ -100,6 +125,44 @@ function publicHandle(profileId: string, referralCode: string) {
 
 function firstRelation<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+async function getBadgesByProfile(profileIds: string[]) {
+  const uniqueProfileIds = Array.from(new Set(profileIds)).filter(Boolean);
+  const badgesByProfile = new Map<string, UserBadge[]>();
+
+  if (uniqueProfileIds.length === 0) {
+    return badgesByProfile;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profile_badges")
+    .select("profile_id, badge_id, badges:badge_id(name, color, image_url)")
+    .in("profile_id", uniqueProfileIds);
+
+  if (error) {
+    const missingProfileBadges = error.message.includes("profile_badges") || error.message.includes("schema cache");
+    if (missingProfileBadges) {
+      return badgesByProfile;
+    }
+    throw new Error(error.message);
+  }
+
+  ((data ?? []) as unknown as ProfileBadgeRow[]).forEach((row) => {
+    const badge = firstRelation(row.badges);
+    if (!badge) return;
+    const current = badgesByProfile.get(row.profile_id) ?? [];
+    current.push({
+      color: badge.color,
+      id: row.badge_id,
+      imageUrl: badge.image_url,
+      name: badge.name,
+    });
+    badgesByProfile.set(row.profile_id, current);
+  });
+
+  return badgesByProfile;
 }
 
 async function getViewerId() {
@@ -139,6 +202,7 @@ function toProfilePost(row: {
 async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
   const supabase = await createClient();
   const postIds = rows.map((row) => row.id);
+  const authorIds = rows.map((row) => row.author_id);
 
   if (postIds.length === 0) {
     return [];
@@ -159,7 +223,12 @@ async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
     ? supabase.from("post_bookmarks").select("post_id").eq("profile_id", viewerId).in("post_id", postIds)
     : Promise.resolve({ data: [] });
 
-  const [commentsResult, likesResult, bookmarksResult] = await Promise.all([commentsQuery, likesQuery, bookmarksQuery]);
+  const [commentsResult, likesResult, bookmarksResult, badgesByProfile] = await Promise.all([
+    commentsQuery,
+    likesQuery,
+    bookmarksQuery,
+    getBadgesByProfile(authorIds),
+  ]);
   const comments = (commentsResult.data ?? []) as unknown as CommentRow[];
   const likedIds = new Set((likesResult.data ?? []).map((like) => like.post_id));
   const bookmarkedIds = new Set((bookmarksResult.data ?? []).map((bookmark) => bookmark.post_id));
@@ -185,6 +254,7 @@ async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
     return {
       audioUrl: row.audio_url,
       author: authorName ?? "Creator",
+      authorBadges: badgesByProfile.get(row.author_id) ?? [],
       authorId: row.author_id,
       avatar: initialsFor(authorName, referralCode),
       bookmarkedByViewer: bookmarkedIds.has(row.id),
@@ -252,7 +322,7 @@ export async function getOwnProfileData() {
     return null;
   }
 
-  const [profileResult, postsResult, bookmarksResult] = await Promise.all([
+  const [profileResult, postsResult, bookmarksResult, badgesByProfile] = await Promise.all([
     supabase.from("profiles").select("id, display_name, referral_code, referral_count").eq("id", viewerId).maybeSingle(),
     supabase
       .from("posts")
@@ -266,6 +336,7 @@ export async function getOwnProfileData() {
       .eq("profile_id", viewerId)
       .order("created_at", { ascending: false })
       .limit(60),
+    getBadgesByProfile([viewerId]),
   ]);
 
   if (profileResult.error) {
@@ -296,6 +367,7 @@ export async function getOwnProfileData() {
       displayName: profile.display_name,
       id: profile.id,
       initials: initialsFor(profile.display_name, profile.referral_code),
+      badges: badgesByProfile.get(profile.id) ?? [],
       referralCode: profile.referral_code,
       referralCount: profile.referral_count,
     },
@@ -323,13 +395,16 @@ export async function getPublicProfileData(identifier: string) {
     return null;
   }
 
-  const { data, error } = await supabase
-    .from("posts")
-    .select("id, type, status, caption, media_url, likes_count")
-    .eq("author_id", profile.id)
-    .eq("status", "published")
-    .order("created_at", { ascending: false })
-    .limit(60);
+  const [{ data, error }, badgesByProfile] = await Promise.all([
+    supabase
+      .from("posts")
+      .select("id, type, status, caption, media_url, likes_count")
+      .eq("author_id", profile.id)
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .limit(60),
+    getBadgesByProfile([profile.id]),
+  ]);
 
   if (error) {
     throw new Error(error.message);
@@ -340,6 +415,7 @@ export async function getPublicProfileData(identifier: string) {
       displayName: profile.display_name,
       id: profile.id,
       initials: initialsFor(profile.display_name, profile.referral_code),
+      badges: badgesByProfile.get(profile.id) ?? [],
       referralCode: profile.referral_code,
       referralCount: profile.referral_count,
     },

@@ -2,6 +2,7 @@ import { BadgeCheck, Banknote, CircleDollarSign, History, ListChecks, XCircle } 
 import { reviewWithdrawalAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { TextInput } from "@/components/ui/input";
 import { getWithdrawalRequests } from "@/lib/admin";
 
@@ -112,15 +113,15 @@ export default async function AdminWithdrawalsPage({ searchParams }: PageProps) 
                 <input name="withdrawalId" type="hidden" value={request.id} />
                 <TextInput label="Review note" name="reviewNote" placeholder="Optional note for the review record" />
                 <div className="grid grid-cols-3 gap-2">
-                  <Button disabled={request.status !== "pending"} icon={<BadgeCheck className="size-4" />} name="reviewAction" type="submit" value="approve">
+                  <SubmitButton disabled={request.status !== "pending"} icon={<BadgeCheck className="size-4" />} name="reviewAction" pendingLabel="Saving..." type="submit" value="approve">
                     Approve
-                  </Button>
-                  <Button disabled={request.status !== "approved"} icon={<CircleDollarSign className="size-4" />} name="reviewAction" type="submit" value="paid" variant="secondary">
+                  </SubmitButton>
+                  <SubmitButton disabled={request.status !== "approved"} icon={<CircleDollarSign className="size-4" />} name="reviewAction" pendingLabel="Saving..." type="submit" value="paid" variant="secondary">
                     Paid
-                  </Button>
-                  <Button disabled={request.status !== "pending"} icon={<XCircle className="size-4" />} name="reviewAction" type="submit" value="reject" variant="danger">
+                  </SubmitButton>
+                  <SubmitButton disabled={request.status !== "pending"} icon={<XCircle className="size-4" />} name="reviewAction" pendingLabel="Saving..." type="submit" value="reject" variant="danger">
                     Reject
-                  </Button>
+                  </SubmitButton>
                 </div>
               </form>
             ) : (

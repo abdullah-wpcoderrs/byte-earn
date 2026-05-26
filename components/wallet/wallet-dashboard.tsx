@@ -23,11 +23,14 @@ export function WalletDashboard({ adminSponsoredUnlocked, financeSettings, walle
   const sponsoredUnlocked = areSponsoredWithdrawalsUnlocked(adminSponsoredUnlocked);
   const totalCredits = getTotalCredits(wallet);
   const availableCredits = getAvailableWithdrawalCredits(wallet, sponsoredUnlocked);
-  const conversionRate = {
-    creditsPerUnit: financeSettings.creditsPerUnit,
-    ngnPerUsd: financeSettings.ngnPerUsd,
-    usdPerUnit: financeSettings.usdPerUnit,
-  };
+  const conversionRate = useMemo(
+    () => ({
+      creditsPerUnit: financeSettings.creditsPerUnit,
+      ngnPerUsd: financeSettings.ngnPerUsd,
+      usdPerUnit: financeSettings.usdPerUnit,
+    }),
+    [financeSettings.creditsPerUnit, financeSettings.ngnPerUsd, financeSettings.usdPerUnit],
+  );
 
   const primaryAmount = useMemo(() => {
     const amount = fiatMode === "NGN" ? creditsToNaira(totalCredits, conversionRate) : creditsToUsd(totalCredits, conversionRate);

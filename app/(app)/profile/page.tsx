@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { ProfilePostTabs } from "@/components/profile/profile-post-tabs";
+import { ProfileBadges } from "@/components/profile/profile-badges";
 import { ReferralShareButton } from "@/components/share/referral-share-button";
 import { getOwnProfileData } from "@/lib/posts";
 
@@ -28,6 +29,9 @@ export default async function ProfilePage() {
               <p className="mt-1 text-muted">
                 {data.posts.length} posts - {data.profile.referralCount} referrals
               </p>
+              <div className="mt-2">
+                <ProfileBadges badges={data.profile.badges} />
+              </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -24,6 +24,27 @@ export type AdminUserFilters = {
 export type AdminUserRow = Awaited<ReturnType<typeof getAdminUsers>>["rows"][number];
 export type AdminRewardRule = Awaited<ReturnType<typeof getRewardRules>>[number];
 export type WithdrawalReviewScope = "history" | "requests";
+export type AdminBadgeOption = Awaited<ReturnType<typeof getAdminBadgeOptions>>[number];
+export type AdminNotificationRow = Awaited<ReturnType<typeof getAdminNotifications>>[number];
+export type AuditLogRow = Awaited<ReturnType<typeof getAuditLogRows>>[number];
+
+type AssignedBadgeRow = {
+  badge_id: string;
+  badges:
+    | {
+        color: string;
+        image_url: string | null;
+        name: string;
+      }
+    | Array<{
+        color: string;
+        image_url: string | null;
+        name: string;
+      }>
+    | null;
+  created_at: string;
+  profile_id: string;
+};
 
 function relationDisplayName(value: unknown) {
   if (Array.isArray(value)) {
@@ -249,6 +270,43 @@ export async function getAdminUsers(filters: AdminUserFilters) {
     throw new Error(rowsError.message);
   }
 
+  const profileIds = (data ?? []).map((user) => user.id);
+  const assignedBadges = new Map<string, Array<{
+    assignedAt: string;
+    color: string;
+    id: string;
+    imageUrl: string | null;
+    name: string;
+  }>>();
+
+  if (profileIds.length > 0) {
+    const { data: badgeRows, error: badgesError } = await supabase
+      .from("profile_badges")
+      .select("profile_id, badge_id, created_at, badges:badge_id(name, color, image_url)")
+      .in("profile_id", profileIds);
+
+    if (badgesError) {
+      const missingProfileBadges = badgesError.message.includes("profile_badges") || badgesError.message.includes("schema cache");
+      if (!missingProfileBadges) {
+        throw new Error(badgesError.message);
+      }
+    }
+
+    ((badgeRows ?? []) as unknown as AssignedBadgeRow[]).forEach((row) => {
+      const badge = Array.isArray(row.badges) ? row.badges[0] : row.badges;
+      if (!badge) return;
+      const current = assignedBadges.get(row.profile_id) ?? [];
+      current.push({
+        assignedAt: row.created_at,
+        color: badge.color,
+        id: row.badge_id,
+        imageUrl: badge.image_url,
+        name: badge.name,
+      });
+      assignedBadges.set(row.profile_id, current);
+    });
+  }
+
   const total = count ?? 0;
   const limit =
     filters.percentile === "top10"
@@ -264,6 +322,7 @@ export async function getAdminUsers(filters: AdminUserFilters) {
       accountName: user.account_name,
       accountNumber: user.account_number,
       bankName: user.bank_name,
+      badges: assignedBadges.get(user.id) ?? [],
       createdAt: user.created_at,
       creditsBalance: user.credits_balance,
       displayName: user.display_name,
@@ -279,6 +338,27 @@ export async function getAdminUsers(filters: AdminUserFilters) {
     total,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
+}
+
+export async function getAdminBadgeOptions() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data, error } = await supabase
+    .from("badges")
+    .select("id, name, color, image_url")
+    .order("name", { ascending: true })
+    .limit(200);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((badge) => ({
+    color: badge.color,
+    id: badge.id,
+    imageUrl: badge.image_url as string | null,
+    name: badge.name,
+  }));
 }
 
 export async function getModerationPosts(status?: "pending" | "published" | "rejected") {
@@ -484,6 +564,7 @@ export async function getEmailBlastHistory() {
 
   return (rows.data ?? []).map((blast) => ({
     audience: blast.audience,
+    htmlBody: blast.html_body,
     bodyPreview: blast.html_body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 140),
     createdAt: new Date(blast.created_at),
     createdBy: relationDisplayName(blast.profiles),
@@ -494,6 +575,43 @@ export async function getEmailBlastHistory() {
     sentAt: "sent_at" in blast && blast.sent_at ? new Date(blast.sent_at as string) : null,
     status: "status" in blast ? (blast.status as string) : "draft",
     subject: blast.subject,
+  }));
+}
+
+export async function getAdminNotifications() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const primaryResult = await supabase
+    .from("platform_notifications")
+    .select("id, title, body, audience, recipient_profile_id, archived_at, created_at, profiles:created_by(display_name)")
+    .order("created_at", { ascending: false })
+    .limit(80);
+
+  if (primaryResult.error && !primaryResult.error.message.includes("archived_at")) {
+    throw new Error(primaryResult.error.message);
+  }
+
+  const rows = primaryResult.error?.message.includes("archived_at")
+    ? await supabase
+      .from("platform_notifications")
+      .select("id, title, body, audience, recipient_profile_id, created_at, profiles:created_by(display_name)")
+      .order("created_at", { ascending: false })
+      .limit(80)
+    : primaryResult;
+
+  if (rows.error) {
+    throw new Error(rows.error.message);
+  }
+
+  return (rows.data ?? []).map((notification) => ({
+    archivedAt: "archived_at" in notification && notification.archived_at ? new Date(notification.archived_at as string) : null,
+    audience: notification.recipient_profile_id ? "targeted" : notification.audience,
+    body: notification.body,
+    createdAt: new Date(notification.created_at),
+    createdBy: relationDisplayName(notification.profiles),
+    id: notification.id,
+    recipientProfileId: notification.recipient_profile_id as string | null,
+    title: notification.title,
   }));
 }
 

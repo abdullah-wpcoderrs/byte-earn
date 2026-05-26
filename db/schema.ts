@@ -236,6 +236,7 @@ export const platformNotifications = pgTable("platform_notifications", {
   audience: notificationAudience("audience").notNull().default("all"),
   createdBy: uuid("created_by").references(() => profiles.id),
   recipientProfileId: uuid("recipient_profile_id").references(() => profiles.id, { onDelete: "cascade" }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -262,6 +263,19 @@ export const badges = pgTable("badges", {
   createdBy: uuid("created_by").references(() => profiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const profileBadges = pgTable(
+  "profile_badges",
+  {
+    profileId: uuid("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+    badgeId: uuid("badge_id").notNull().references(() => badges.id, { onDelete: "cascade" }),
+    assignedBy: uuid("assigned_by").references(() => profiles.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.profileId, table.badgeId] }),
+  ],
+);
 
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").defaultRandom().primaryKey(),

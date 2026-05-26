@@ -1,6 +1,6 @@
 import { Save } from "lucide-react";
 import { updateLeaderboardSettingsAction } from "@/app/admin/actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { getLeaderboardRows, getOrCreatePlatformSettings } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
@@ -45,9 +45,9 @@ export default async function AdminLeaderboardPage() {
             </label>
           ))}
         </div>
-        <Button icon={<Save className="size-4" />} type="submit">
+        <SubmitButton icon={<Save className="size-4" />} pendingLabel="Saving rules..." type="submit">
           Save rules
-        </Button>
+        </SubmitButton>
       </form>
 
       <section className="glass overflow-hidden">

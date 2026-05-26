@@ -1,5 +1,6 @@
 import { Clapperboard, ImageIcon, Music2 } from "lucide-react";
 import { PostActions } from "./post-actions";
+import { ProfileBadges } from "@/components/profile/profile-badges";
 import type { FeedPost } from "@/lib/posts";
 
 type FeedCardProps = {
@@ -42,6 +43,9 @@ export function FeedCard({ post }: FeedCardProps) {
           <a className="text-base font-semibold text-white hover:text-cyan-100" href={`/u/${post.handle}`}>
             @{post.handle}
           </a>
+          <div className="mt-1">
+            <ProfileBadges badges={post.authorBadges} compact />
+          </div>
           <p className="mt-2 max-w-[18rem] leading-5 text-slate-200">{post.caption}</p>
         </div>
         {isAudioPost ? (

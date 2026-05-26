@@ -1,15 +1,24 @@
-import { BellPlus, MailPlus, Save } from "lucide-react";
+import { Archive, BellPlus, MailPlus, Save, Trash2 } from "lucide-react";
 import {
+  archiveNotificationAction,
   createEmailBlastAction,
   createNotificationAction,
+  deleteNotificationAction,
   updatePlatformSettingsAction,
 } from "@/app/admin/actions";
-import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { TextInput } from "@/components/ui/input";
-import { getOrCreatePlatformSettings } from "@/lib/admin";
+import { getAdminNotifications, getOrCreatePlatformSettings } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
+
+type ImpactRow = {
+  detail: string;
+  label: string;
+  routes: string[];
+  state: string;
+};
 
 function TextArea({ label, name, placeholder }: { label: string; name: string; placeholder?: string }) {
   return (
@@ -25,7 +34,48 @@ function TextArea({ label, name, placeholder }: { label: string; name: string; p
 }
 
 export default async function AdminPlatformPage() {
-  const settings = await getOrCreatePlatformSettings();
+  const [settings, notifications] = await Promise.all([
+    getOrCreatePlatformSettings(),
+    getAdminNotifications(),
+  ]);
+  const impactRows: ImpactRow[] = [
+    {
+      detail: settings.post_approval_required
+        ? "New uploads enter moderation before feed/profile publication."
+        : "New uploads publish immediately and appear on the creator profile.",
+      label: "Post approval",
+      routes: ["/upload", "/feed", "/profile", "/admin/moderation"],
+      state: settings.post_approval_required ? "Approval required" : "Auto-publish",
+    },
+    {
+      detail: `Uploads are rejected server-side above ${settings.max_upload_size_mb ?? 50} MB.`,
+      label: "Max upload size",
+      routes: ["/feed create modal", "/upload"],
+      state: `${settings.max_upload_size_mb ?? 50} MB`,
+    },
+    {
+      detail: settings.sponsored_withdrawals_unlocked
+        ? "Sponsored task credits are available for payout."
+        : "Sponsored task credits remain locked outside fallback unlock rules.",
+      label: "Sponsored withdrawals",
+      routes: ["/wallet", "/admin/withdrawals"],
+      state: settings.sponsored_withdrawals_unlocked ? "Unlocked" : "Locked",
+    },
+    {
+      detail: settings.under_construction
+        ? "Protected user routes are intercepted by the construction screen."
+        : "Protected user routes remain available to eligible users.",
+      label: "Under construction",
+      routes: ["/feed", "/tasks", "/wallet", "/leaderboard", "/profile"],
+      state: settings.under_construction ? "Enabled" : "Disabled",
+    },
+    {
+      detail: "Task reward progress uses this cap when watch/task credit enforcement is active.",
+      label: "Daily watch cap",
+      routes: ["/tasks", "/wallet"],
+      state: `${settings.daily_watch_limit_seconds} seconds`,
+    },
+  ];
 
   return (
     <div className="grid gap-4">
@@ -58,10 +108,35 @@ export default async function AdminPlatformPage() {
         ))}
         <TextInput defaultValue={settings.daily_watch_limit_seconds} label="Daily watch limit seconds" name="dailyWatchLimitSeconds" inputMode="numeric" />
         <TextInput defaultValue={settings.max_upload_size_mb ?? 50} label="Max upload size MB" max={100} min={1} name="maxUploadSizeMb" inputMode="numeric" />
-        <Button className="lg:col-span-2" icon={<Save className="size-4" />} type="submit">
+        <SubmitButton className="lg:col-span-2" icon={<Save className="size-4" />} pendingLabel="Saving settings..." type="submit">
           Save platform settings
-        </Button>
+        </SubmitButton>
       </form>
+
+      <section className="glass overflow-hidden">
+        <div className="border-b border-white/10 p-4">
+          <h2 className="text-base font-semibold">Settings impact</h2>
+          <p className="mt-1 text-muted">Where each platform setting is enforced after save.</p>
+        </div>
+        <div className="divide-y divide-white/10">
+          {impactRows.map((item) => (
+            <article className="grid gap-3 p-4 lg:grid-cols-[180px_140px_1fr_1.1fr] lg:items-center" key={item.label}>
+              <p className="font-semibold text-slate-100">{item.label}</p>
+              <span className="rounded-[5px] border border-cyan-200/20 bg-cyan-300/10 px-2 py-1 text-center text-[11px] font-semibold text-cyan-100">
+                {item.state}
+              </span>
+              <p className="leading-5 text-slate-300">{item.detail}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {item.routes.map((route) => (
+                  <span className="rounded-[5px] border border-white/10 bg-white/[0.045] px-2 py-1 text-[11px] font-semibold text-slate-300" key={route}>
+                    {route}
+                  </span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <form action={createNotificationAction} className="glass grid content-start gap-3 p-4">
@@ -73,9 +148,9 @@ export default async function AdminPlatformPage() {
             <option value="active">Active users</option>
             <option value="suspended">Suspended users</option>
           </Select>
-          <Button icon={<BellPlus className="size-4" />} type="submit">
+          <SubmitButton icon={<BellPlus className="size-4" />} pendingLabel="Creating..." type="submit">
             Create
-          </Button>
+          </SubmitButton>
         </form>
 
         <form action={createEmailBlastAction} className="glass grid content-start gap-3 p-4">
@@ -87,10 +162,47 @@ export default async function AdminPlatformPage() {
             <option value="active">Active users</option>
             <option value="suspended">Suspended users</option>
           </Select>
-          <Button icon={<MailPlus className="size-4" />} type="submit">
+          <SubmitButton icon={<MailPlus className="size-4" />} pendingLabel="Saving blast..." type="submit">
             Save blast
-          </Button>
+          </SubmitButton>
         </form>
+      </section>
+
+      <section className="glass overflow-hidden">
+        <div className="border-b border-white/10 p-4">
+          <h2 className="text-base font-semibold">Notification history</h2>
+          <p className="mt-1 text-muted">Archive or delete platform notifications from user trays.</p>
+        </div>
+        <div className="divide-y divide-white/10">
+          {notifications.map((notification) => (
+            <article className="grid gap-3 p-4 lg:grid-cols-[1fr_130px_150px_220px] lg:items-center" key={notification.id}>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-slate-100">{notification.title}</p>
+                  {notification.archivedAt ? <span className="rounded-[5px] border border-amber-200/20 bg-amber-300/10 px-2 py-1 text-[11px] font-semibold text-amber-100">Archived</span> : null}
+                </div>
+                <p className="mt-1 leading-5 text-slate-300">{notification.body}</p>
+              </div>
+              <span className="rounded-[5px] border border-white/10 px-2 py-1 text-center text-slate-200">{notification.audience}</span>
+              <time className="text-slate-400">{notification.createdAt.toLocaleString("en-NG")}</time>
+              <div className="grid grid-cols-2 gap-2">
+                <form action={archiveNotificationAction}>
+                  <input name="notificationId" type="hidden" value={notification.id} />
+                  <SubmitButton className="w-full" disabled={Boolean(notification.archivedAt)} icon={<Archive className="size-4" />} pendingLabel="Archiving..." type="submit" variant="secondary">
+                    Archive
+                  </SubmitButton>
+                </form>
+                <form action={deleteNotificationAction}>
+                  <input name="notificationId" type="hidden" value={notification.id} />
+                  <SubmitButton className="w-full" icon={<Trash2 className="size-4" />} pendingLabel="Deleting..." type="submit" variant="danger">
+                    Delete
+                  </SubmitButton>
+                </form>
+              </div>
+            </article>
+          ))}
+        </div>
+        {notifications.length === 0 ? <div className="p-6 text-center text-muted">No notifications have been created yet.</div> : null}
       </section>
     </div>
   );

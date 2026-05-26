@@ -4,6 +4,8 @@
 
 Finish the admin-to-user feature wiring so every admin control has a clear user-facing effect, safe server enforcement, and visible toast feedback for create, update, delete, and review actions.
 
+Tracking checklist: `docs/admin-user-route-wiring-checklist.md`
+
 ## Current Baseline
 
 - Admin settings save redirects now surface toast messages through the shared toast viewport.

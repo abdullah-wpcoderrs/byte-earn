@@ -23,11 +23,6 @@ function intValue(formData: FormData, key: string) {
   return Number.isInteger(value) ? value : 0;
 }
 
-function numberValue(formData: FormData, key: string) {
-  const value = Number(textValue(formData, key).replace(/,/g, ""));
-  return Number.isFinite(value) ? value : 0;
-}
-
 function strictIntegerValue(formData: FormData, key: string) {
   const raw = textValue(formData, key);
   return /^\d+$/.test(raw) ? Number(raw) : null;
@@ -570,6 +565,41 @@ export async function createNotificationAction(formData: FormData) {
   redirect("/admin/platform?updated=notification");
 }
 
+export async function archiveNotificationAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:notification-archive:${admin.id}`, 30, 60 * 60 * 1000);
+  const notificationId = textValue(formData, "notificationId");
+  if (!uuidPattern.test(notificationId)) redirect("/admin/platform?error=invalid_notification");
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { error } = await supabase
+    .from("platform_notifications")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", notificationId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/platform");
+  revalidatePath("/feed");
+  await writeAuditLog({ action: "admin.notification.archived", actorId: admin.id, actorType: "admin", entityId: notificationId, entityType: "platform_notification" });
+  redirect("/admin/platform?updated=notification_archived");
+}
+
+export async function deleteNotificationAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:notification-delete:${admin.id}`, 20, 60 * 60 * 1000);
+  const notificationId = textValue(formData, "notificationId");
+  if (!uuidPattern.test(notificationId)) redirect("/admin/platform?error=invalid_notification");
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { error } = await supabase.from("platform_notifications").delete().eq("id", notificationId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/platform");
+  revalidatePath("/feed");
+  await writeAuditLog({ action: "admin.notification.deleted", actorId: admin.id, actorType: "admin", entityId: notificationId, entityType: "platform_notification" });
+  redirect("/admin/platform?updated=notification_deleted");
+}
+
 export async function createEmailBlastAction(formData: FormData) {
   const admin = await requireAdmin();
   assertRateLimit(`admin:email-blasts:${admin.id}`, 10, 60 * 60 * 1000);
@@ -583,6 +613,77 @@ export async function createEmailBlastAction(formData: FormData) {
   revalidatePath("/admin/platform");
   await writeAuditLog({ action: "admin.email_blast.created", actorId: admin.id, actorType: "admin", entityId: data?.id, entityType: "email_blast", metadata: { audience, subject } });
   redirect("/admin/platform?updated=email_blast");
+}
+
+export async function updateEmailBlastAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:email-blast-update:${admin.id}`, 20, 60 * 60 * 1000);
+  const blastId = textValue(formData, "blastId");
+  const subject = textValue(formData, "subject").slice(0, 120);
+  const htmlBody = textValue(formData, "htmlBody").slice(0, 5000);
+  const audience = textValue(formData, "audience") as "all" | "active" | "suspended";
+  if (!uuidPattern.test(blastId)) redirect("/admin/email-blasts?error=invalid_blast");
+  if (!subject || !htmlBody || !["all", "active", "suspended"].includes(audience)) redirect("/admin/email-blasts?error=invalid_email");
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data: blast, error: blastError } = await supabase.from("email_blasts").select("status").eq("id", blastId).maybeSingle();
+  if (blastError || !blast) redirect("/admin/email-blasts?error=missing_blast");
+  if (!["draft", "failed"].includes(blast.status)) redirect("/admin/email-blasts?error=invalid_transition");
+
+  const { error } = await supabase
+    .from("email_blasts")
+    .update({ audience, error_message: null, failed_at: null, html_body: htmlBody, status: "draft", subject })
+    .eq("id", blastId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/email-blasts");
+  await writeAuditLog({ action: "admin.email_blast.updated", actorId: admin.id, actorType: "admin", entityId: blastId, entityType: "email_blast", metadata: { audience, subject } });
+  redirect("/admin/email-blasts?updated=email_blast_updated");
+}
+
+export async function deleteEmailBlastAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:email-blast-delete:${admin.id}`, 20, 60 * 60 * 1000);
+  const blastId = textValue(formData, "blastId");
+  if (!uuidPattern.test(blastId)) redirect("/admin/email-blasts?error=invalid_blast");
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data: blast, error: blastError } = await supabase.from("email_blasts").select("status").eq("id", blastId).maybeSingle();
+  if (blastError || !blast) redirect("/admin/email-blasts?error=missing_blast");
+  if (!["draft", "failed"].includes(blast.status)) redirect("/admin/email-blasts?error=invalid_transition");
+
+  const { error } = await supabase.from("email_blasts").delete().eq("id", blastId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/email-blasts");
+  await writeAuditLog({ action: "admin.email_blast.deleted", actorId: admin.id, actorType: "admin", entityId: blastId, entityType: "email_blast" });
+  redirect("/admin/email-blasts?updated=email_blast_deleted");
+}
+
+export async function duplicateEmailBlastAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:email-blast-duplicate:${admin.id}`, 20, 60 * 60 * 1000);
+  const blastId = textValue(formData, "blastId");
+  if (!uuidPattern.test(blastId)) redirect("/admin/email-blasts?error=invalid_blast");
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data: blast, error: blastError } = await supabase
+    .from("email_blasts")
+    .select("subject, html_body, audience")
+    .eq("id", blastId)
+    .maybeSingle();
+  if (blastError || !blast) redirect("/admin/email-blasts?error=missing_blast");
+
+  const { data, error } = await supabase
+    .from("email_blasts")
+    .insert({ audience: blast.audience, created_by: admin.id, html_body: blast.html_body, status: "draft", subject: `Copy of ${blast.subject}`.slice(0, 120) })
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/email-blasts");
+  await writeAuditLog({ action: "admin.email_blast.duplicated", actorId: admin.id, actorType: "admin", entityId: data?.id, entityType: "email_blast", metadata: { sourceBlastId: blastId } });
+  redirect("/admin/email-blasts?updated=email_blast_duplicated");
 }
 
 export async function sendEmailBlastAction(formData: FormData) {
@@ -600,6 +701,7 @@ export async function sendEmailBlastAction(formData: FormData) {
     .maybeSingle();
   if (blastError || !blast) redirect("/admin/email-blasts?error=missing_blast");
   if (blast.status === "sending") redirect("/admin/email-blasts?error=already_sending");
+  if (blast.status === "sent") redirect("/admin/email-blasts?error=invalid_transition");
 
   await supabase.from("email_blasts").update({ error_message: null, failed_at: null, status: "sending" }).eq("id", blastId);
 
@@ -688,4 +790,74 @@ export async function createBadgeAction(formData: FormData) {
   revalidatePath("/admin");
   await writeAuditLog({ action: "admin.badge.created", actorId: admin.id, actorType: "admin", entityId: data?.id, entityType: "badge", metadata: { color, hasImage: true, name } });
   redirect("/admin/badges?updated=badge");
+}
+
+export async function assignProfileBadgeAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:badge-assign:${admin.id}`, 40, 60 * 60 * 1000);
+  const profileId = textValue(formData, "profileId");
+  const badgeId = textValue(formData, "badgeId");
+
+  if (!uuidPattern.test(profileId) || !uuidPattern.test(badgeId)) {
+    redirect("/admin/users?error=invalid_profile_badge");
+  }
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { error } = await supabase
+    .from("profile_badges")
+    .upsert({ assigned_by: admin.id, badge_id: badgeId, profile_id: profileId }, { onConflict: "profile_id,badge_id" });
+
+  if (error) {
+    redirect(`/admin/users?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/feed");
+  revalidatePath("/profile");
+  revalidatePath(`/u/${profileId}`);
+  await writeAuditLog({
+    action: "admin.badge.assigned",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: profileId,
+    entityType: "profile",
+    metadata: { badgeId },
+  });
+  redirect("/admin/users?updated=badge_assigned");
+}
+
+export async function removeProfileBadgeAction(formData: FormData) {
+  const admin = await requireAdmin();
+  assertRateLimit(`admin:badge-remove:${admin.id}`, 40, 60 * 60 * 1000);
+  const profileId = textValue(formData, "profileId");
+  const badgeId = textValue(formData, "badgeId");
+
+  if (!uuidPattern.test(profileId) || !uuidPattern.test(badgeId)) {
+    redirect("/admin/users?error=invalid_profile_badge");
+  }
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { error } = await supabase
+    .from("profile_badges")
+    .delete()
+    .eq("profile_id", profileId)
+    .eq("badge_id", badgeId);
+
+  if (error) {
+    redirect(`/admin/users?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/feed");
+  revalidatePath("/profile");
+  revalidatePath(`/u/${profileId}`);
+  await writeAuditLog({
+    action: "admin.badge.removed",
+    actorId: admin.id,
+    actorType: "admin",
+    entityId: profileId,
+    entityType: "profile",
+    metadata: { badgeId },
+  });
+  redirect("/admin/users?updated=badge_removed");
 }

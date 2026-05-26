@@ -1,15 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Coins, ShieldCheck, Trash2, UserCog, UserMinus, UserPlus, XCircle } from "lucide-react";
-import { bulkUserAction, createAdminUserAction } from "@/app/admin/actions";
+import { BadgePlus, Coins, ShieldCheck, Trash2, UserCog, UserMinus, UserPlus, XCircle } from "lucide-react";
+import { assignProfileBadgeAction, bulkUserAction, createAdminUserAction, removeProfileBadgeAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { TextInput } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import type { AdminUserRow } from "@/lib/admin";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ProfileBadges } from "@/components/profile/profile-badges";
+import type { AdminBadgeOption, AdminUserRow } from "@/lib/admin";
 
 type UserManagementTableProps = {
+  badgeOptions: AdminBadgeOption[];
   users: AdminUserRow[];
 };
 
@@ -34,9 +37,56 @@ function Detail({ label, value }: { label: string; value: string | number | bool
   );
 }
 
-function SingleUserActions({ user }: { user: AdminUserRow }) {
+function UserBadgeActions({ badgeOptions, user }: { badgeOptions: AdminBadgeOption[]; user: AdminUserRow }) {
+  const assignedBadgeIds = new Set(user.badges.map((badge) => badge.id));
+  const availableBadges = badgeOptions.filter((badge) => !assignedBadgeIds.has(badge.id));
+
+  return (
+    <div className="grid gap-3 rounded-[5px] border border-white/10 bg-white/[0.045] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-semibold text-slate-100">Assigned badges</p>
+          <p className="mt-1 text-muted">Badges appear on this user&apos;s profile and feed posts.</p>
+        </div>
+        <ProfileBadges badges={user.badges} />
+      </div>
+
+      <form action={assignProfileBadgeAction} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+        <input name="profileId" type="hidden" value={user.id} />
+        <Select label="Assign badge" name="badgeId" required>
+          <option value="">Choose badge</option>
+          {availableBadges.map((badge) => (
+            <option key={badge.id} value={badge.id}>{badge.name}</option>
+          ))}
+        </Select>
+        <SubmitButton className="self-end" disabled={availableBadges.length === 0} icon={<BadgePlus className="size-4" />} pendingLabel="Assigning..." type="submit">
+          Assign
+        </SubmitButton>
+      </form>
+
+      {user.badges.length > 0 ? (
+        <div className="grid gap-2">
+          {user.badges.map((badge) => (
+            <form action={removeProfileBadgeAction} className="flex items-center justify-between gap-2 rounded-[5px] border border-white/10 px-3 py-2" key={badge.id}>
+              <input name="profileId" type="hidden" value={user.id} />
+              <input name="badgeId" type="hidden" value={badge.id} />
+              <span className="font-medium text-slate-200">{badge.name}</span>
+              <SubmitButton name="removeBadge" pendingLabel="Removing..." type="submit" variant="danger">
+                Remove
+              </SubmitButton>
+            </form>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SingleUserActions({ badgeOptions, user }: { badgeOptions: AdminBadgeOption[]; user: AdminUserRow }) {
   return (
     <div className="grid gap-3">
+      <UserBadgeActions badgeOptions={badgeOptions} user={user} />
+
       <form action={bulkUserAction} className="grid gap-3">
         <input name="userIds" type="hidden" value={user.id} />
         <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
@@ -44,15 +94,15 @@ function SingleUserActions({ user }: { user: AdminUserRow }) {
           <TextInput label="Reason" name="reason" placeholder="Ledger description" />
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
-          <Button icon={<UserPlus className="size-4" />} name="bulkAction" type="submit" value="credit">
+          <SubmitButton icon={<UserPlus className="size-4" />} name="bulkAction" pendingLabel="Saving..." type="submit" value="credit">
             Add credits
-          </Button>
-          <Button icon={<UserMinus className="size-4" />} name="bulkAction" type="submit" value="deduct" variant="secondary">
+          </SubmitButton>
+          <SubmitButton icon={<UserMinus className="size-4" />} name="bulkAction" pendingLabel="Saving..." type="submit" value="deduct" variant="secondary">
             Deduct
-          </Button>
-          <Button icon={<XCircle className="size-4" />} name="bulkAction" type="submit" value="remove" variant="secondary">
+          </SubmitButton>
+          <SubmitButton icon={<XCircle className="size-4" />} name="bulkAction" pendingLabel="Saving..." type="submit" value="remove" variant="secondary">
             Clear balance
-          </Button>
+          </SubmitButton>
         </div>
       </form>
 
@@ -60,28 +110,28 @@ function SingleUserActions({ user }: { user: AdminUserRow }) {
         <input name="userIds" type="hidden" value={user.id} />
         <TextInput label="Admin note" name="reason" placeholder="Reason for account change" />
         <div className="grid gap-2 sm:grid-cols-2">
-          <Button icon={<ShieldCheck className="size-4" />} name="bulkAction" type="submit" value="activate" variant="secondary">
+          <SubmitButton icon={<ShieldCheck className="size-4" />} name="bulkAction" pendingLabel="Saving..." type="submit" value="activate" variant="secondary">
             Activate
-          </Button>
-          <Button icon={<UserCog className="size-4" />} name="bulkAction" type="submit" value="make_admin" variant="secondary">
+          </SubmitButton>
+          <SubmitButton icon={<UserCog className="size-4" />} name="bulkAction" pendingLabel="Saving..." type="submit" value="make_admin" variant="secondary">
             Make admin
-          </Button>
-          <Button icon={<UserMinus className="size-4" />} name="bulkAction" type="submit" value="remove_admin" variant="secondary">
+          </SubmitButton>
+          <SubmitButton icon={<UserMinus className="size-4" />} name="bulkAction" pendingLabel="Saving..." type="submit" value="remove_admin" variant="secondary">
             Remove admin
-          </Button>
-          <Button icon={<XCircle className="size-4" />} name="bulkAction" type="submit" value="suspend" variant="danger">
+          </SubmitButton>
+          <SubmitButton icon={<XCircle className="size-4" />} name="bulkAction" pendingLabel="Saving..." type="submit" value="suspend" variant="danger">
             Suspend
-          </Button>
-          <Button className="sm:col-span-2" icon={<Trash2 className="size-4" />} name="bulkAction" type="submit" value="delete" variant="danger">
+          </SubmitButton>
+          <SubmitButton className="sm:col-span-2" icon={<Trash2 className="size-4" />} name="bulkAction" pendingLabel="Deleting..." type="submit" value="delete" variant="danger">
             Delete profile
-          </Button>
+          </SubmitButton>
         </div>
       </form>
     </div>
   );
 }
 
-export function UserManagementTable({ users }: UserManagementTableProps) {
+export function UserManagementTable({ badgeOptions, users }: UserManagementTableProps) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
   const selectedUserName = useMemo(() => selectedUser?.displayName ?? "Unnamed user", [selectedUser]);
@@ -108,9 +158,9 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
           </Select>
           <TextInput icon={<Coins className="size-4" />} label="Credits" name="credits" inputMode="numeric" placeholder="0" />
           <TextInput label="Reason" name="reason" placeholder="Visible ledger or audit description" />
-          <Button className="self-end" icon={<UserMinus className="size-4" />} type="submit" variant="secondary">
+          <SubmitButton className="self-end" icon={<UserMinus className="size-4" />} pendingLabel="Applying..." type="submit" variant="secondary">
             Apply
-          </Button>
+          </SubmitButton>
         </div>
 
         <div className="hidden grid-cols-[44px_1.4fr_110px_110px_110px_120px] border-b border-white/10 px-4 py-3 font-semibold text-slate-300 md:grid">
@@ -153,6 +203,7 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
               <span className="grid gap-1 text-left">
                 <span className="block font-semibold text-slate-100">{user.displayName ?? "Unnamed user"}</span>
                 <span className="text-muted">{user.referralCode}</span>
+                <ProfileBadges badges={user.badges} compact />
               </span>
               <span className="rounded-[5px] border border-white/10 px-2 py-1 text-center text-slate-200">{user.status}</span>
               <span className="text-slate-300">{user.role}</span>
@@ -181,9 +232,9 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
               <option value="suspended">Suspended</option>
             </Select>
           </div>
-          <Button className="mt-1" icon={<UserPlus className="size-4" />} type="submit">
+          <SubmitButton className="mt-1" icon={<UserPlus className="size-4" />} pendingLabel="Creating user..." type="submit">
             Create user
-          </Button>
+          </SubmitButton>
         </form>
       </Modal>
 
@@ -218,7 +269,7 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
               </div>
             </div>
 
-            <SingleUserActions user={selectedUser} />
+            <SingleUserActions badgeOptions={badgeOptions} user={selectedUser} />
           </div>
         ) : null}
       </Modal>

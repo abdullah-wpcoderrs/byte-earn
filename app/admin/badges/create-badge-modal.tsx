@@ -5,6 +5,7 @@ import { BadgePlus } from "lucide-react";
 import { createBadgeAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { TextInput } from "@/components/ui/input";
 
 function TextArea({ label, name }: { label: string; name: string }) {
@@ -44,9 +45,9 @@ export function CreateBadgeModal() {
             />
           </label>
           <TextArea label="Description" name="description" />
-          <Button icon={<BadgePlus className="size-4" />} type="submit">
+          <SubmitButton icon={<BadgePlus className="size-4" />} pendingLabel="Creating badge..." type="submit">
             Create badge
-          </Button>
+          </SubmitButton>
         </form>
       </Modal>
     </>

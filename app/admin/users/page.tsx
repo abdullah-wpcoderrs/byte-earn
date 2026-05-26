@@ -3,7 +3,7 @@ import { UserManagementTable } from "./user-management-table";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { TextInput } from "@/components/ui/input";
-import { getAdminUsers } from "@/lib/admin";
+import { getAdminBadgeOptions, getAdminUsers } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,10 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
     percentile: first(params.percentile) as "top10" | "top25" | "bottom25" | undefined,
     q: first(params.q) ?? "",
   };
-  const users = await getAdminUsers(filters);
+  const [users, badgeOptions] = await Promise.all([
+    getAdminUsers(filters),
+    getAdminBadgeOptions(),
+  ]);
 
   return (
     <div className="grid gap-4">
@@ -48,7 +51,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         </Button>
       </form>
 
-      <UserManagementTable users={users.rows} />
+      <UserManagementTable badgeOptions={badgeOptions} users={users.rows} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-muted">
         <p>

@@ -2,6 +2,7 @@ import { CheckCircle2, Trash2, XCircle } from "lucide-react";
 import { moderatePostAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { TextInput } from "@/components/ui/input";
 import { getModerationPosts } from "@/lib/admin";
 
@@ -60,15 +61,15 @@ export default async function AdminModerationPage({ searchParams }: PageProps) {
               <input name="postId" type="hidden" value={post.id} />
               <TextInput label="Rejection message" name="message" placeholder="Reason for author notification" />
               <div className="grid grid-cols-3 gap-2">
-                <Button disabled={post.status !== "pending"} icon={<CheckCircle2 className="size-4" />} name="moderationAction" type="submit" value="publish">
+                <SubmitButton disabled={post.status !== "pending"} icon={<CheckCircle2 className="size-4" />} name="moderationAction" pendingLabel="Saving..." type="submit" value="publish">
                   Publish
-                </Button>
-                <Button disabled={post.status !== "pending"} icon={<XCircle className="size-4" />} name="moderationAction" type="submit" value="reject" variant="secondary">
+                </SubmitButton>
+                <SubmitButton disabled={post.status !== "pending"} icon={<XCircle className="size-4" />} name="moderationAction" pendingLabel="Saving..." type="submit" value="reject" variant="secondary">
                   Reject
-                </Button>
-                <Button icon={<Trash2 className="size-4" />} name="moderationAction" type="submit" value="delete" variant="danger">
+                </SubmitButton>
+                <SubmitButton icon={<Trash2 className="size-4" />} name="moderationAction" pendingLabel="Deleting..." type="submit" value="delete" variant="danger">
                   Delete
-                </Button>
+                </SubmitButton>
               </div>
             </form>
           </article>

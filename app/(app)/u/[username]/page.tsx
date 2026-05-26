@@ -1,5 +1,6 @@
 import { Link2 } from "lucide-react";
 import { notFound } from "next/navigation";
+import { ProfileBadges } from "@/components/profile/profile-badges";
 import { PostGrid } from "@/components/profile/post-grid";
 import { ReferralShareButton } from "@/components/share/referral-share-button";
 import { getPublicProfileData } from "@/lib/posts";
@@ -27,6 +28,9 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
               <p className="mt-1 text-muted">
                 {data.posts.length} published posts - {data.profile.referralCount} referrals
               </p>
+              <div className="mt-2">
+                <ProfileBadges badges={data.profile.badges} />
+              </div>
             </div>
           </div>
           <div className="flex gap-2">

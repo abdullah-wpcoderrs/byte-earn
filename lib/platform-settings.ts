@@ -45,5 +45,8 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     return defaultPlatformSettings;
   }
 
-  return data;
+  return {
+    ...data,
+    max_upload_size_mb: Math.max(1, data.max_upload_size_mb ?? defaultPlatformSettings.max_upload_size_mb),
+  };
 }
