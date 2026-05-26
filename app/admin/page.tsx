@@ -1,4 +1,5 @@
 import { ArrowRight, BadgeCheck, ShieldCheck, UsersRound, WalletCards } from "lucide-react";
+import Link from "next/link";
 import { getAdminStats } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export default async function AdminPage() {
       </section>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
-          <a className="glass flex min-h-32 flex-col justify-between p-4 transition hover:border-cyan-200/35" href={card.href} key={card.label}>
+          <Link className="glass flex min-h-32 flex-col justify-between p-4 transition hover:border-cyan-200/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200" href={card.href} key={card.label}>
             <div className="flex items-center justify-between gap-3">
               <card.icon className="size-5 text-cyan-200" />
               <ArrowRight className="size-4 text-slate-500" />
@@ -29,7 +30,7 @@ export default async function AdminPage() {
               <p className="text-[28px] font-semibold leading-none">{card.value}</p>
               <p className="mt-2 text-muted">{card.label}</p>
             </div>
-          </a>
+          </Link>
         ))}
       </section>
     </div>

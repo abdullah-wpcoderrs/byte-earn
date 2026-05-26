@@ -19,9 +19,9 @@ function first(value: string | string[] | undefined) {
 export default async function AdminModerationPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const rawStatus = first(params.status);
-  const status = rawStatus === undefined
-    ? "pending"
-    : (["pending", "published", "rejected"].includes(rawStatus) ? rawStatus : undefined) as "pending" | "published" | "rejected" | undefined;
+  const status = ["pending", "published", "rejected"].includes(rawStatus ?? "")
+    ? rawStatus as "pending" | "published" | "rejected"
+    : undefined;
   const posts = await getModerationPosts(status);
 
   return (

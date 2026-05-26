@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { writeAuditLog } from "@/lib/audit";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -43,11 +44,24 @@ async function requirePublishedPost(postId: string) {
   return post;
 }
 
-async function updatePostCount(postId: string, column: "bookmarks_count" | "comments_count" | "likes_count", nextValue: number) {
-  const supabase = await createClient();
+async function syncPostCount(
+  postId: string,
+  table: "post_bookmarks" | "post_comments" | "post_likes",
+  column: "bookmarks_count" | "comments_count" | "likes_count",
+) {
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { count, error: countError } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("post_id", postId);
+
+  if (countError) {
+    throw new Error(countError.message);
+  }
+
   const { error } = await supabase
     .from("posts")
-    .update({ [column]: Math.max(0, nextValue) })
+    .update({ [column]: count ?? 0 })
     .eq("id", postId);
 
   if (error) {
@@ -76,7 +90,7 @@ export async function toggleLikeAction(postId: string) {
     if (error) {
       throw new Error(error.message);
     }
-    await updatePostCount(postId, "likes_count", post.likes_count - 1);
+    await syncPostCount(postId, "post_likes", "likes_count");
     revalidatePath("/feed");
     revalidatePath(`/posts/${postId}`);
     return { active: false };
@@ -93,7 +107,7 @@ export async function toggleLikeAction(postId: string) {
   }
 
   if (inserted) {
-    await updatePostCount(postId, "likes_count", post.likes_count + 1);
+    await syncPostCount(postId, "post_likes", "likes_count");
     await writeAuditLog({ action: "post.like", actorId: userId, entityId: postId, entityType: "post" });
   }
 
@@ -123,7 +137,7 @@ export async function toggleBookmarkAction(postId: string) {
     if (error) {
       throw new Error(error.message);
     }
-    await updatePostCount(postId, "bookmarks_count", post.bookmarks_count - 1);
+    await syncPostCount(postId, "post_bookmarks", "bookmarks_count");
     revalidatePath("/feed");
     revalidatePath(`/posts/${postId}`);
     return { active: false };
@@ -140,7 +154,7 @@ export async function toggleBookmarkAction(postId: string) {
   }
 
   if (inserted) {
-    await updatePostCount(postId, "bookmarks_count", post.bookmarks_count + 1);
+    await syncPostCount(postId, "post_bookmarks", "bookmarks_count");
     await writeAuditLog({ action: "post.bookmark", actorId: userId, entityId: postId, entityType: "post" });
   }
 
@@ -170,7 +184,7 @@ export async function addCommentAction(postId: string, body: string) {
     throw new Error(error.message);
   }
 
-  await updatePostCount(postId, "comments_count", post.comments_count + 1);
+  await syncPostCount(postId, "post_comments", "comments_count");
   await writeAuditLog({
     action: "post.comment",
     actorId: userId,

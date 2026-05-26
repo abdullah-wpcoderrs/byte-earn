@@ -20,7 +20,8 @@ const tabs = [
 ] as const;
 
 export function ProfilePostTabs({ pendingPosts, publishedPosts, savedPosts }: ProfilePostTabsProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>("published");
+  const initialTab = publishedPosts.length === 0 && pendingPosts.length > 0 ? "pending" : "published";
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const activePosts = useMemo(
     () => ({
       pending: pendingPosts,

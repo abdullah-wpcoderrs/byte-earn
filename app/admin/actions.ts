@@ -274,7 +274,7 @@ export async function moderatePostAction(formData: FormData) {
 
   if (!uuidPattern.test(postId)) redirect("/admin/moderation?error=invalid_post");
 
-  const supabase = await createClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const { data: post, error: postError } = await supabase.from("posts").select("id, author_id, status").eq("id", postId).maybeSingle();
   if (postError || !post) redirect("/admin/moderation?error=missing_post");
 
@@ -295,6 +295,13 @@ export async function moderatePostAction(formData: FormData) {
   }
 
   if (action === "delete") {
+    const childDeletes = await Promise.all([
+      supabase.from("post_comments").delete().eq("post_id", postId),
+      supabase.from("post_bookmarks").delete().eq("post_id", postId),
+      supabase.from("post_likes").delete().eq("post_id", postId),
+    ]);
+    const childDeleteError = childDeletes.find((result) => result.error)?.error;
+    if (childDeleteError) throw new Error(childDeleteError.message);
     const { error } = await supabase.from("posts").delete().eq("id", postId);
     if (error) throw new Error(error.message);
   }

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type UploadPostType = "image_audio" | "image_text" | "video_text";
@@ -84,7 +85,7 @@ async function uploadPublicFile({
   target: "feed" | "upload";
   userId: string;
 }) {
-  const supabase = await createClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const path = `${userId}/${crypto.randomUUID()}.${extensionFor(file)}`;
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
     contentType: file.type,
@@ -108,6 +109,28 @@ export async function createPostAction(formData: FormData) {
 
   if (!user) {
     redirect("/?auth=required");
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    redirect("/?auth_error=Profile%20not%20found.");
+  }
+
+  if (profile.status === "suspended") {
+    redirect(`/?auth_error=${encodeURIComponent("Account suspended.")}`);
+  }
+
+  if (profile.status === "pending_payment") {
+    redirect("/activate");
+  }
+
+  if (profile.status !== "active") {
+    redirect("/onboarding");
   }
 
   assertRateLimit(`post:create:${user.id}`, 20, 60 * 60 * 1000);
@@ -134,7 +157,8 @@ export async function createPostAction(formData: FormData) {
     ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, target, "audio_required"), target, userId: user.id })
     : null;
   const status = settings.post_approval_required ? "pending" : "published";
-  const { data: post, error: postError } = await supabase
+  const postClient = hasSupabaseAdminKey() ? createAdminClient() : supabase;
+  const { data: post, error: postError } = await postClient
     .from("posts")
     .insert({
       audio_url: audioUrl,
@@ -161,10 +185,16 @@ export async function createPostAction(formData: FormData) {
 
   revalidatePath("/feed");
   revalidatePath("/profile");
+  revalidatePath("/admin");
+  revalidatePath("/admin/moderation");
   if (post?.id) {
     revalidatePath(`/posts/${post.id}`);
   }
 
   const updated = status === "published" ? "post_published" : "post_submitted";
+  if (target === "feed" && status === "published" && post?.id) {
+    redirect(`/posts/${post.id}?updated=${updated}`);
+  }
+
   redirect(target === "feed" ? `/feed?post=${post?.id ?? ""}&updated=${updated}` : `/upload?updated=${updated}`);
 }

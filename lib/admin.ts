@@ -363,7 +363,7 @@ export async function getAdminBadgeOptions() {
 
 export async function getModerationPosts(status?: "pending" | "published" | "rejected") {
   await requireAdmin();
-  const supabase = await createClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   let query = supabase
     .from("posts")
     .select("id, type, status, caption, media_url, likes_count, comments_count, created_at, profiles:author_id(display_name)")

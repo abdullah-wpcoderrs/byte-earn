@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -135,11 +136,18 @@ async function getBadgesByProfile(profileIds: string[]) {
     return badgesByProfile;
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("profile_badges")
-    .select("profile_id, badge_id, badges:badge_id(name, color, image_url)")
-    .in("profile_id", uniqueProfileIds);
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const fetchBadges = (includeImageUrl: boolean) =>
+    supabase
+      .from("profile_badges")
+      .select(`profile_id, badge_id, badges:badge_id(name, color${includeImageUrl ? ", image_url" : ""})`)
+      .in("profile_id", uniqueProfileIds);
+
+  const primaryResult = await fetchBadges(true);
+  const missingBadgeImageColumn =
+    primaryResult.error?.message.includes("image_url") ||
+    primaryResult.error?.message.includes("schema cache");
+  const { data, error } = missingBadgeImageColumn ? await fetchBadges(false) : primaryResult;
 
   if (error) {
     const missingProfileBadges = error.message.includes("profile_badges") || error.message.includes("schema cache");
@@ -156,7 +164,7 @@ async function getBadgesByProfile(profileIds: string[]) {
     current.push({
       color: badge.color,
       id: row.badge_id,
-      imageUrl: badge.image_url,
+      imageUrl: "image_url" in badge ? badge.image_url : null,
       name: badge.name,
     });
     badgesByProfile.set(row.profile_id, current);
@@ -200,7 +208,7 @@ function toProfilePost(row: {
 }
 
 async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
-  const supabase = await createClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const postIds = rows.map((row) => row.id);
   const authorIds = rows.map((row) => row.author_id);
 
@@ -273,7 +281,7 @@ async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
 }
 
 export async function getFeedPosts() {
-  const supabase = await createClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const viewerId = await getViewerId();
   const { data, error } = await supabase
     .from("posts")
@@ -294,7 +302,7 @@ export async function getPostById(postId: string) {
     return null;
   }
 
-  const supabase = await createClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const viewerId = await getViewerId();
   const { data, error } = await supabase
     .from("posts")
@@ -316,11 +324,11 @@ export async function getPostById(postId: string) {
 }
 
 export async function getOwnProfileData() {
-  const supabase = await createClient();
   const viewerId = await getViewerId();
   if (!viewerId) {
     return null;
   }
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
 
   const [profileResult, postsResult, bookmarksResult, badgesByProfile] = await Promise.all([
     supabase.from("profiles").select("id, display_name, referral_code, referral_count").eq("id", viewerId).maybeSingle(),
@@ -379,7 +387,7 @@ export async function getOwnProfileData() {
 }
 
 export async function getPublicProfileData(identifier: string) {
-  const supabase = await createClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const normalized = identifier.trim();
   const query = supabase.from("profiles").select("id, display_name, referral_code, referral_count");
   const profileResult = uuidPattern.test(normalized)

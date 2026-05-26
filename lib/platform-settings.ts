@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type PlatformSettings = {
@@ -33,7 +34,7 @@ export const defaultPlatformSettings: PlatformSettings = {
 };
 
 export async function getPlatformSettings(): Promise<PlatformSettings> {
-  const supabase = await createClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const { data, error } = await supabase
     .from("platform_settings")
     .select("*")
