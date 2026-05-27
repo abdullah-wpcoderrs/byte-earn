@@ -42,7 +42,11 @@ export async function getPlatformSettings(): Promise<PlatformSettings> {
     .limit(1)
     .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
     return defaultPlatformSettings;
   }
 

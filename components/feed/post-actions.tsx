@@ -1,9 +1,8 @@
 "use client";
 
-import { Bookmark, Heart, MessageCircle } from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Share2 } from "lucide-react";
 import { useState, useTransition } from "react";
-import { addCommentAction, toggleBookmarkAction, toggleLikeAction } from "@/app/(app)/posts/actions";
-import { ReferralShareButton } from "@/components/share/referral-share-button";
+import { addCommentAction, recordShareAction, toggleBookmarkAction, toggleLikeAction } from "@/app/(app)/posts/actions";
 import { Sheet } from "@/components/ui/sheet";
 import type { FeedComment } from "@/lib/posts";
 
@@ -15,6 +14,18 @@ type PostActionsProps = {
   likedByViewer: boolean;
   likesCount: number;
   postId: string;
+};
+
+type PostActionSnapshot = {
+  bookmarkedByViewer: boolean;
+  bookmarksCount: number;
+  commentsCount: number;
+  impressionsCount: number;
+  likedByViewer: boolean;
+  likesCount: number;
+  sharesCount: number;
+  videoWatchSecondsTotal: number;
+  videoWatchSessionsCount: number;
 };
 
 function compact(value: number) {
@@ -39,17 +50,30 @@ export function PostActions({
   const [commentBody, setCommentBody] = useState("");
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [likeBurst, setLikeBurst] = useState(0);
   const [isPending, startTransition] = useTransition();
+
+  function applySnapshot(snapshot: PostActionSnapshot) {
+    setLiked(snapshot.likedByViewer);
+    setBookmarked(snapshot.bookmarkedByViewer);
+    setLocalLikes(snapshot.likesCount);
+    setLocalBookmarks(snapshot.bookmarksCount);
+    setLocalCommentsCount(snapshot.commentsCount);
+  }
 
   function toggleLike() {
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLocalLikes((count) => Math.max(0, count + (nextLiked ? 1 : -1)));
+    if (nextLiked) {
+      setLikeBurst(Date.now());
+    }
     setMessage("");
 
     startTransition(async () => {
       try {
         const result = await toggleLikeAction(postId);
+        applySnapshot(result.snapshot);
         setLiked(result.active);
       } catch (error) {
         setLiked(!nextLiked);
@@ -68,6 +92,7 @@ export function PostActions({
     startTransition(async () => {
       try {
         const result = await toggleBookmarkAction(postId);
+        applySnapshot(result.snapshot);
         setBookmarked(result.active);
       } catch (error) {
         setBookmarked(!nextBookmarked);
@@ -88,8 +113,8 @@ export function PostActions({
     startTransition(async () => {
       try {
         const result = await addCommentAction(postId, nextBody);
-        setLocalComments((current) => [{ author: "You", body: nextBody, id: result.id ?? `${postId}-${Date.now()}` }, ...current]);
-        setLocalCommentsCount((count) => count + 1);
+        setLocalComments((current) => [result.comment, ...current]);
+        applySnapshot(result.snapshot);
         setCommentBody("");
         setMessage("Comment posted.");
       } catch (error) {
@@ -98,10 +123,31 @@ export function PostActions({
     });
   }
 
+  function sharePost() {
+    const url = `${window.location.origin}/posts/${postId}`;
+    startTransition(async () => {
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: "byte-earn post", url });
+        } else {
+          await navigator.clipboard?.writeText(url);
+        }
+        const result = await recordShareAction(postId);
+        if (result.recorded && result.snapshot) {
+          applySnapshot(result.snapshot);
+        }
+        setMessage("Post shared.");
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setMessage("Could not share post.");
+      }
+    });
+  }
+
   return (
     <>
       <div className="flex flex-col gap-3">
-        <ActionButton active={liked} count={compact(localLikes)} disabled={isPending} label="Like post" onClick={toggleLike}>
+        <ActionButton active={liked} burstKey={likeBurst} count={compact(localLikes)} disabled={isPending} label="Like post" onClick={toggleLike}>
           <Heart className={`size-5 ${liked ? "fill-current" : ""}`} />
         </ActionButton>
         <ActionButton count={compact(localCommentsCount)} label="Open comments" onClick={() => setCommentsOpen(true)}>
@@ -110,10 +156,9 @@ export function PostActions({
         <ActionButton active={bookmarked} count={compact(localBookmarks)} disabled={isPending} label="Bookmark post" onClick={toggleBookmark}>
           <Bookmark className={`size-5 ${bookmarked ? "fill-current" : ""}`} />
         </ActionButton>
-        <ReferralShareButton
-          className="grid min-h-[54px] min-w-[46px] place-items-center rounded-[5px] border border-white/15 bg-black/32 text-center text-white backdrop-blur transition hover:bg-cyan-300/12"
-          label="Share"
-        />
+        <ActionButton count="" disabled={isPending} label="Share post" onClick={sharePost}>
+          <Share2 className="size-5" />
+        </ActionButton>
       </div>
 
       <Sheet onClose={() => setCommentsOpen(false)} open={commentsOpen} title="Comments">
@@ -158,11 +203,13 @@ function ActionButton({
   active,
   children,
   count,
+  burstKey,
   disabled,
   label,
   onClick,
 }: {
   active?: boolean;
+  burstKey?: number;
   children: React.ReactNode;
   count: string;
   disabled?: boolean;
@@ -172,7 +219,7 @@ function ActionButton({
   return (
     <button
       aria-label={label}
-      className={`grid min-h-[54px] min-w-[46px] place-items-center rounded-[5px] border text-center transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`relative grid min-h-[54px] min-w-[46px] place-items-center rounded-[5px] border text-center transition disabled:cursor-not-allowed disabled:opacity-60 ${
         active
           ? "border-cyan-200/30 bg-cyan-300/18 text-cyan-100"
           : "border-white/15 bg-black/32 text-white backdrop-blur hover:bg-cyan-300/12"
@@ -181,6 +228,11 @@ function ActionButton({
       onClick={onClick}
       type="button"
     >
+      {burstKey ? (
+        <span className="like-burst pointer-events-none absolute -left-2 -top-3 text-lg" key={burstKey}>
+          ♥
+        </span>
+      ) : null}
       {children}
       <span className="mt-1 text-[10px] leading-none text-slate-300">{count}</span>
     </button>

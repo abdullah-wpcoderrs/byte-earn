@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
+import { removePostMediaFiles } from "@/lib/post-media";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
@@ -23,6 +24,10 @@ function requiredString(formData: FormData, key: string) {
 function optionalFile(formData: FormData, key: string) {
   const value = formData.get(key);
   return value instanceof File && value.size > 0 ? value : null;
+}
+
+function optionalFiles(formData: FormData, key: string) {
+  return formData.getAll(key).filter((value): value is File => value instanceof File && value.size > 0);
 }
 
 function uploadTarget(formData: FormData) {
@@ -133,26 +138,40 @@ export async function createPostAction(formData: FormData) {
     redirect("/onboarding");
   }
 
-  assertRateLimit(`post:create:${user.id}`, 20, 60 * 60 * 1000);
+  await assertRateLimit(`post:create:${user.id}`, 20, 60 * 60 * 1000);
 
   const type = requiredString(formData, "postType") as UploadPostType;
-  const caption = requiredString(formData, "caption").slice(0, 600);
+  const rawCaption = requiredString(formData, "caption");
+
+  if (rawCaption.length > 600) {
+    redirectWithError(target, "caption_too_long");
+  }
+
+  const caption = rawCaption;
 
   if (!postTypes.has(type)) {
     redirectWithError(target, "invalid_post_type");
   }
 
-  const settings = await getPlatformSettings();
+  const settings = await getPlatformSettings().catch(() => redirectWithError(target, "settings_unavailable"));
   const maxUploadSizeMb = Math.max(1, settings.max_upload_size_mb ?? 50);
   const maxUploadSizeBytes = maxUploadSizeMb * 1024 * 1024;
-  const mediaFile = assertFile(optionalFile(formData, "mediaFile"), target, "media_required");
+  const mediaFiles = optionalFiles(formData, "mediaFile");
+
+  if (type === "image_text" && mediaFiles.length > 8) {
+    redirectWithError(target, "too_many_media_files");
+  }
+
+  const mediaFile = assertFile(mediaFiles[0] ?? null, target, "media_required");
   const audioFile = optionalFile(formData, "audioFile");
   const mediaBucket = type === "video_text" ? "post-videos" : "post-images";
-  assertAcceptedFile(mediaFile, target, type === "video_text" ? "video" : "image", maxUploadSizeBytes);
+  const acceptedMediaFiles = type === "image_text" ? mediaFiles : [mediaFile];
+  acceptedMediaFiles.forEach((file) => assertAcceptedFile(file, target, type === "video_text" ? "video" : "image", maxUploadSizeBytes));
   if (audioFile) {
     assertAcceptedFile(audioFile, target, "audio", maxUploadSizeBytes);
   }
-  const mediaUrl = await uploadPublicFile({ bucket: mediaBucket, file: mediaFile, target, userId: user.id });
+  const mediaUrls = await Promise.all(acceptedMediaFiles.map((file) => uploadPublicFile({ bucket: mediaBucket, file, target, userId: user.id })));
+  const mediaUrl = mediaUrls[0];
   const audioUrl = type === "image_audio"
     ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, target, "audio_required"), target, userId: user.id })
     : null;
@@ -165,6 +184,7 @@ export async function createPostAction(formData: FormData) {
       author_id: user.id,
       caption,
       media_url: mediaUrl,
+      media_urls: JSON.stringify(mediaUrls),
       status,
       type,
     })
@@ -172,6 +192,13 @@ export async function createPostAction(formData: FormData) {
     .maybeSingle();
 
   if (postError) {
+    await removePostMediaFiles([...mediaUrls, audioUrl]);
+    await writeAuditLog({
+      action: "post.create_failed",
+      actorId: user.id,
+      entityType: "post",
+      metadata: { message: postError.message, status, type },
+    }).catch(() => undefined);
     redirectWithError(target, postError.message);
   }
 

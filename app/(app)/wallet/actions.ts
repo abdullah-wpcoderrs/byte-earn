@@ -6,6 +6,7 @@ import { getActiveFinanceSettings } from "@/lib/finance-settings";
 import { nairaToCredits } from "@/lib/money";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { areSponsoredWithdrawalsUnlocked, getAvailableWithdrawalCredits, type WalletBreakdown } from "@/lib/wallet";
 
@@ -38,7 +39,7 @@ export async function requestWithdrawalAction(formData: FormData) {
     redirect("/");
   }
 
-  assertRateLimit(`wallet:withdrawal:${user.id}`, 3, 60 * 60 * 1000);
+  await assertRateLimit(`wallet:withdrawal:${user.id}`, 3, 60 * 60 * 1000);
 
   const [ledgerResult, withdrawalResult, settings, financeSettings] = await Promise.all([
     supabase.from("credit_ledger").select("credits, source").eq("profile_id", user.id),
@@ -79,31 +80,32 @@ export async function requestWithdrawalAction(formData: FormData) {
     redirect("/wallet?withdrawal_error=insufficient_available_balance");
   }
 
-  const { data: request, error } = await supabase
-    .from("withdrawals")
-    .insert({
-      account_name: accountName,
-      account_number: accountNumber,
-      amount_credits: requestedCredits,
-      amount_naira: amountNaira.toFixed(2),
-      bank_name: bankName,
-      credits_per_unit_snapshot: financeSettings.creditsPerUnit,
-      ngn_per_credit_snapshot: ngnPerCredit.toFixed(4),
-      ngn_per_usd_snapshot: financeSettings.ngnPerUsd.toFixed(4),
-      profile_id: user.id,
-      usd_per_unit_snapshot: financeSettings.usdPerUnit.toFixed(4),
-    })
-    .select("id")
-    .maybeSingle();
+  const adminSupabase = createAdminClient();
+  const { data: request, error } = await adminSupabase.rpc("request_withdrawal_atomically", {
+    request_account_name: accountName,
+    request_account_number: accountNumber,
+    request_amount_credits: requestedCredits,
+    request_amount_naira: amountNaira.toFixed(2),
+    request_bank_name: bankName,
+    request_credits_per_unit_snapshot: financeSettings.creditsPerUnit,
+    request_ngn_per_credit_snapshot: ngnPerCredit.toFixed(4),
+    request_ngn_per_usd_snapshot: financeSettings.ngnPerUsd.toFixed(4),
+    request_profile_id: user.id,
+    request_usd_per_unit_snapshot: financeSettings.usdPerUnit.toFixed(4),
+    sponsored_unlocked: sponsoredUnlocked,
+  });
 
   if (error) {
-    redirect(`/wallet?withdrawal_error=${encodeURIComponent(error.message)}`);
+    const knownBalanceError = error.message.includes("insufficient_available_balance");
+    redirect(`/wallet?withdrawal_error=${encodeURIComponent(knownBalanceError ? "insufficient_available_balance" : error.message)}`);
   }
+
+  const createdRequest = request?.[0];
 
   await writeAuditLog({
     action: "withdrawal.requested",
     actorId: user.id,
-    entityId: request?.id,
+    entityId: createdRequest?.withdrawal_id,
     entityType: "withdrawal",
     metadata: { amountNaira, requestedCredits, rate: financeSettings },
   });

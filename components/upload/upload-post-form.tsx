@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, FileAudio, ImageIcon, LoaderCircle, UploadCloud, Video } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createPostAction } from "@/app/(app)/upload/actions";
 
@@ -37,8 +37,20 @@ const postTypeCopy: Record<PostType, { accept: string; helper: string; icon: typ
 
 export function UploadPostForm({ returnTo = "upload" }: UploadPostFormProps) {
   const [postType, setPostType] = useState<PostType>("image_text");
+  const [mediaPreviews, setMediaPreviews] = useState<Array<{ name: string; type: string; url: string }>>([]);
   const selected = postTypeCopy[postType];
   const SelectedIcon = selected.icon;
+  const allowsMultipleImages = postType === "image_text";
+
+  useEffect(() => {
+    return () => mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+  }, [mediaPreviews]);
+
+  function updateMediaPreviews(files: FileList | null) {
+    mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    const nextFiles = Array.from(files ?? []).slice(0, allowsMultipleImages ? 8 : 1);
+    setMediaPreviews(nextFiles.map((file) => ({ name: file.name, type: file.type, url: URL.createObjectURL(file) })));
+  }
 
   return (
     <form action={createPostAction} className="grid gap-3">
@@ -54,7 +66,10 @@ export function UploadPostForm({ returnTo = "upload" }: UploadPostFormProps) {
           <select
             className="min-h-10 w-full appearance-none rounded-[5px] border border-white/10 bg-[#101f37] px-2.5 pr-8 text-white outline-none transition focus:border-cyan-200/55"
             name="postType"
-            onChange={(event) => setPostType(event.target.value as PostType)}
+            onChange={(event) => {
+              setPostType(event.target.value as PostType);
+              setMediaPreviews([]);
+            }}
             value={postType}
           >
             <option value="image_text">Image and text caption</option>
@@ -80,11 +95,32 @@ export function UploadPostForm({ returnTo = "upload" }: UploadPostFormProps) {
         <input
           accept={selected.accept}
           className="min-h-10 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-slate-300 file:mr-3 file:rounded-[5px] file:border-0 file:bg-cyan-300 file:px-2.5 file:py-1.5 file:font-semibold file:text-slate-950"
+          multiple={allowsMultipleImages}
           name="mediaFile"
+          onChange={(event) => updateMediaPreviews(event.currentTarget.files)}
           required
           type="file"
         />
       </label>
+
+      {mediaPreviews.length > 0 ? (
+        <div className="overflow-hidden rounded-[5px] border border-white/10 bg-white/[0.045]">
+          <div className="app-scrollbar flex gap-2 overflow-x-auto p-2">
+            {mediaPreviews.map((preview, index) => (
+              <div className="relative aspect-[4/5] w-28 shrink-0 overflow-hidden rounded-[5px] bg-slate-950" key={preview.url}>
+                {preview.type.startsWith("video/") ? (
+                  <video className="size-full object-cover" muted playsInline preload="metadata" src={preview.url} />
+                ) : (
+                  <img alt={preview.name} className="size-full object-cover" src={preview.url} />
+                )}
+                <span className="absolute left-1.5 top-1.5 rounded-[5px] bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur">
+                  {index + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {postType === "image_audio" ? (
         <label className="grid gap-2">

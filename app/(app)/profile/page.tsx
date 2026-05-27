@@ -71,7 +71,7 @@ export default async function ProfilePage() {
         </div>
       </section>
 
-      <ProfilePostTabs pendingPosts={data.pendingPosts} publishedPosts={data.publishedPosts} savedPosts={data.savedPosts} />
+      <ProfilePostTabs pendingPosts={data.pendingPosts} publishedPosts={data.publishedPosts} rejectedPosts={data.rejectedPosts} savedPosts={data.savedPosts} />
     </div>
   );
 }

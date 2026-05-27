@@ -24,7 +24,7 @@ export async function signUpAction(formData: FormData) {
   const password = readRequiredString(formData, "password");
   const requestHeaders = await headers();
   const clientIp = getClientIp(requestHeaders);
-  assertRateLimit(`auth:signup:${clientIp}:${email.toLowerCase()}`, 5, 10 * 60 * 1000);
+  await assertRateLimit(`auth:signup:${clientIp}:${email.toLowerCase()}`, 5, 10 * 60 * 1000);
   const referralCodeInput = formData.get("referralCode");
   const cookieReferralCode = (await cookies()).get("byte_earn_ref")?.value;
   const providedReferralCode =
@@ -90,7 +90,7 @@ export async function signInAction(formData: FormData) {
   const password = readRequiredString(formData, "password");
   const requestHeaders = await headers();
   const clientIp = getClientIp(requestHeaders);
-  assertRateLimit(`auth:signin:${clientIp}:${email.toLowerCase()}`, 8, 10 * 60 * 1000);
+  await assertRateLimit(`auth:signin:${clientIp}:${email.toLowerCase()}`, 8, 10 * 60 * 1000);
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,

@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  const limit = checkRateLimit(`paystack:init:${clientIp}:${user.id}`, 4, 10 * 60 * 1000);
+  const limit = await checkRateLimit(`paystack:init:${clientIp}:${user.id}`, 4, 10 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.redirect(new URL("/activate?payment_error=rate_limited", request.url));
   }

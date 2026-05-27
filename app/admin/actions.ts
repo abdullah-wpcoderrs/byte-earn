@@ -6,6 +6,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { sendGmailMessage } from "@/lib/email/gmail-smtp";
 import { getOrCreateFinanceSettings } from "@/lib/finance-settings";
 import { requireAdmin } from "@/lib/admin";
+import { postMediaUrls, removePostMediaFiles } from "@/lib/post-media";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { createUniqueReferralCode } from "@/lib/referrals";
@@ -102,7 +103,7 @@ async function syncAuthRole(profileId: string, role: "admin" | "user") {
 
 export async function createAdminUserAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:create-user:${admin.id}`, 10, 60 * 60 * 1000);
+  await assertRateLimit(`admin:create-user:${admin.id}`, 10, 60 * 60 * 1000);
 
   const email = emailValue(formData, "email");
   const password = textValue(formData, "password");
@@ -158,7 +159,7 @@ export async function createAdminUserAction(formData: FormData) {
 
 export async function bulkUserAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:bulk-users:${admin.id}`, 20, 10 * 60 * 1000);
+  await assertRateLimit(`admin:bulk-users:${admin.id}`, 20, 10 * 60 * 1000);
   const action = textValue(formData, "bulkAction");
   const ids = selectedIds(formData, "userIds").filter((id) => id !== admin.id);
   const credits = Math.abs(intValue(formData, "credits"));
@@ -267,7 +268,7 @@ export async function bulkUserAction(formData: FormData) {
 
 export async function moderatePostAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:moderation:${admin.id}`, 60, 10 * 60 * 1000);
+  await assertRateLimit(`admin:moderation:${admin.id}`, 60, 10 * 60 * 1000);
   const postId = textValue(formData, "postId");
   const action = textValue(formData, "moderationAction");
   const message = textValue(formData, "message", "Your post was rejected by moderation.").slice(0, 240);
@@ -275,7 +276,7 @@ export async function moderatePostAction(formData: FormData) {
   if (!uuidPattern.test(postId)) redirect("/admin/moderation?error=invalid_post");
 
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
-  const { data: post, error: postError } = await supabase.from("posts").select("id, author_id, status").eq("id", postId).maybeSingle();
+  const { data: post, error: postError } = await supabase.from("posts").select("id, author_id, status, media_url, media_urls, audio_url").eq("id", postId).maybeSingle();
   if (postError || !post) redirect("/admin/moderation?error=missing_post");
 
   if (action === "publish" || action === "reject") {
@@ -304,6 +305,7 @@ export async function moderatePostAction(formData: FormData) {
     if (childDeleteError) throw new Error(childDeleteError.message);
     const { error } = await supabase.from("posts").delete().eq("id", postId);
     if (error) throw new Error(error.message);
+    await removePostMediaFiles(postMediaUrls(post.media_url, post.media_urls, post.audio_url));
   }
 
   if (action !== "publish" && action !== "reject" && action !== "delete") {
@@ -328,7 +330,7 @@ export async function moderatePostAction(formData: FormData) {
 
 export async function reviewWithdrawalAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:withdrawals:${admin.id}`, 40, 10 * 60 * 1000);
+  await assertRateLimit(`admin:withdrawals:${admin.id}`, 40, 10 * 60 * 1000);
   const withdrawalId = textValue(formData, "withdrawalId");
   const action = textValue(formData, "reviewAction");
   const note = textValue(formData, "reviewNote").slice(0, 240);
@@ -382,6 +384,7 @@ export async function reviewWithdrawalAction(formData: FormData) {
           ? `Your withdrawal request for NGN ${request.amount_naira} was marked as paid.`
           : `Your withdrawal request for NGN ${request.amount_naira} was rejected.${note ? ` ${note}` : ""}`,
     created_by: admin.id,
+    recipient_profile_id: request.profile_id,
     title: `Withdrawal ${nextStatus}`,
   });
 
@@ -415,7 +418,7 @@ export async function reviewWithdrawalAction(formData: FormData) {
 
 export async function updateLeaderboardSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:leaderboard:${admin.id}`, 20, 10 * 60 * 1000);
+  await assertRateLimit(`admin:leaderboard:${admin.id}`, 20, 10 * 60 * 1000);
   const settingsId = textValue(formData, "settingsId");
   const values = {
     leaderboard_strict_mode: formData.get("leaderboardStrictMode") === "on",
@@ -438,7 +441,7 @@ export async function updateLeaderboardSettingsAction(formData: FormData) {
 
 export async function updatePlatformSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:platform:${admin.id}`, 20, 10 * 60 * 1000);
+  await assertRateLimit(`admin:platform:${admin.id}`, 20, 10 * 60 * 1000);
   const settingsId = textValue(formData, "settingsId");
   const values = {
     daily_watch_limit_seconds: Math.max(60, intValue(formData, "dailyWatchLimitSeconds")),
@@ -461,7 +464,7 @@ export async function updatePlatformSettingsAction(formData: FormData) {
 
 export async function updateRewardRuleAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:reward-rule:${admin.id}`, 30, 10 * 60 * 1000);
+  await assertRateLimit(`admin:reward-rule:${admin.id}`, 30, 10 * 60 * 1000);
   const ruleId = textValue(formData, "ruleId");
   const credits = strictIntegerValue(formData, "credits");
   const minCreditsPerAction = strictIntegerValue(formData, "minCreditsPerAction");
@@ -518,7 +521,7 @@ export async function updateRewardRuleAction(formData: FormData) {
 
 export async function updateFinanceSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:finance-settings:${admin.id}`, 20, 10 * 60 * 1000);
+  await assertRateLimit(`admin:finance-settings:${admin.id}`, 20, 10 * 60 * 1000);
   const creditsPerUnit = strictIntegerValue(formData, "creditsPerUnit");
   const usdPerUnit = strictDecimalValue(formData, "usdPerUnit");
   const ngnPerUsd = strictDecimalValue(formData, "ngnPerUsd");
@@ -559,7 +562,7 @@ export async function updateFinanceSettingsAction(formData: FormData) {
 
 export async function createNotificationAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:notifications:${admin.id}`, 30, 60 * 60 * 1000);
+  await assertRateLimit(`admin:notifications:${admin.id}`, 30, 60 * 60 * 1000);
   const title = textValue(formData, "title").slice(0, 80);
   const body = textValue(formData, "body").slice(0, 600);
   const audience = textValue(formData, "audience") as "all" | "active" | "suspended";
@@ -574,7 +577,7 @@ export async function createNotificationAction(formData: FormData) {
 
 export async function archiveNotificationAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:notification-archive:${admin.id}`, 30, 60 * 60 * 1000);
+  await assertRateLimit(`admin:notification-archive:${admin.id}`, 30, 60 * 60 * 1000);
   const notificationId = textValue(formData, "notificationId");
   if (!uuidPattern.test(notificationId)) redirect("/admin/platform?error=invalid_notification");
 
@@ -593,7 +596,7 @@ export async function archiveNotificationAction(formData: FormData) {
 
 export async function deleteNotificationAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:notification-delete:${admin.id}`, 20, 60 * 60 * 1000);
+  await assertRateLimit(`admin:notification-delete:${admin.id}`, 20, 60 * 60 * 1000);
   const notificationId = textValue(formData, "notificationId");
   if (!uuidPattern.test(notificationId)) redirect("/admin/platform?error=invalid_notification");
 
@@ -609,7 +612,7 @@ export async function deleteNotificationAction(formData: FormData) {
 
 export async function createEmailBlastAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:email-blasts:${admin.id}`, 10, 60 * 60 * 1000);
+  await assertRateLimit(`admin:email-blasts:${admin.id}`, 10, 60 * 60 * 1000);
   const subject = textValue(formData, "subject").slice(0, 120);
   const htmlBody = textValue(formData, "htmlBody").slice(0, 5000);
   const audience = textValue(formData, "audience") as "all" | "active" | "suspended";
@@ -624,7 +627,7 @@ export async function createEmailBlastAction(formData: FormData) {
 
 export async function updateEmailBlastAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:email-blast-update:${admin.id}`, 20, 60 * 60 * 1000);
+  await assertRateLimit(`admin:email-blast-update:${admin.id}`, 20, 60 * 60 * 1000);
   const blastId = textValue(formData, "blastId");
   const subject = textValue(formData, "subject").slice(0, 120);
   const htmlBody = textValue(formData, "htmlBody").slice(0, 5000);
@@ -650,7 +653,7 @@ export async function updateEmailBlastAction(formData: FormData) {
 
 export async function deleteEmailBlastAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:email-blast-delete:${admin.id}`, 20, 60 * 60 * 1000);
+  await assertRateLimit(`admin:email-blast-delete:${admin.id}`, 20, 60 * 60 * 1000);
   const blastId = textValue(formData, "blastId");
   if (!uuidPattern.test(blastId)) redirect("/admin/email-blasts?error=invalid_blast");
 
@@ -669,7 +672,7 @@ export async function deleteEmailBlastAction(formData: FormData) {
 
 export async function duplicateEmailBlastAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:email-blast-duplicate:${admin.id}`, 20, 60 * 60 * 1000);
+  await assertRateLimit(`admin:email-blast-duplicate:${admin.id}`, 20, 60 * 60 * 1000);
   const blastId = textValue(formData, "blastId");
   if (!uuidPattern.test(blastId)) redirect("/admin/email-blasts?error=invalid_blast");
 
@@ -695,7 +698,7 @@ export async function duplicateEmailBlastAction(formData: FormData) {
 
 export async function sendEmailBlastAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:email-blast-send:${admin.id}`, 5, 60 * 60 * 1000);
+  await assertRateLimit(`admin:email-blast-send:${admin.id}`, 5, 60 * 60 * 1000);
   const blastId = textValue(formData, "blastId");
   if (!uuidPattern.test(blastId)) redirect("/admin/email-blasts?error=invalid_blast");
   if (!hasSupabaseAdminKey()) redirect("/admin/email-blasts?error=missing_service_role");
@@ -763,7 +766,7 @@ export async function sendEmailBlastAction(formData: FormData) {
 
 export async function createBadgeAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:badges:${admin.id}`, 30, 60 * 60 * 1000);
+  await assertRateLimit(`admin:badges:${admin.id}`, 30, 60 * 60 * 1000);
   const name = textValue(formData, "name").slice(0, 48);
   const color = textValue(formData, "color", "#5fd7ff").slice(0, 24);
   const description = textValue(formData, "description").slice(0, 180);
@@ -801,7 +804,7 @@ export async function createBadgeAction(formData: FormData) {
 
 export async function assignProfileBadgeAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:badge-assign:${admin.id}`, 40, 60 * 60 * 1000);
+  await assertRateLimit(`admin:badge-assign:${admin.id}`, 40, 60 * 60 * 1000);
   const profileId = textValue(formData, "profileId");
   const badgeId = textValue(formData, "badgeId");
 
@@ -835,7 +838,7 @@ export async function assignProfileBadgeAction(formData: FormData) {
 
 export async function removeProfileBadgeAction(formData: FormData) {
   const admin = await requireAdmin();
-  assertRateLimit(`admin:badge-remove:${admin.id}`, 40, 60 * 60 * 1000);
+  await assertRateLimit(`admin:badge-remove:${admin.id}`, 40, 60 * 60 * 1000);
   const profileId = textValue(formData, "profileId");
   const badgeId = textValue(formData, "badgeId");
 

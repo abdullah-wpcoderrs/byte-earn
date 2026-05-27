@@ -31,10 +31,15 @@ export type FeedPost = {
   commentsCount: number;
   handle: string;
   id: string;
+  impressionsCount: number;
   likedByViewer: boolean;
   likesCount: number;
   mediaUrl: string;
+  mediaUrls: string[];
+  sharesCount: number;
   type: "image_audio" | "image_text" | "video_text";
+  videoWatchSecondsTotal: number;
+  videoWatchSessionsCount: number;
 };
 
 export type ProfilePost = {
@@ -42,10 +47,21 @@ export type ProfilePost = {
   caption: string;
   handle?: string;
   id: string;
+  impressionsCount: number;
   likesCount: number;
   mediaUrl: string;
+  mediaUrls: string[];
   status: "pending" | "published" | "rejected";
   type: "image_audio" | "image_text" | "video_text";
+};
+
+export type PostAnalytics = {
+  avgWatchSeconds: number | null;
+  bookmarksCount: number;
+  commentsCount: number;
+  impressionsCount: number;
+  likesCount: number;
+  sharesCount: number;
 };
 
 type PostRow = {
@@ -55,10 +71,15 @@ type PostRow = {
   caption: string;
   comments_count: number;
   id: string;
+  impressions_count?: number | null;
   likes_count: number;
   media_url: string;
+  media_urls?: string | null;
   profiles: RelationProfile;
+  shares_count?: number | null;
   type: "image_audio" | "image_text" | "video_text";
+  video_watch_seconds_total?: number | null;
+  video_watch_sessions_count?: number | null;
 };
 
 type CommentRow = {
@@ -128,6 +149,20 @@ function firstRelation<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function parseMediaUrls(value: string | null | undefined, fallback: string) {
+  if (!value) return [fallback];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      const urls = parsed.filter((url): url is string => typeof url === "string" && url.length > 0);
+      return urls.length > 0 ? urls : [fallback];
+    }
+  } catch {
+    return [fallback];
+  }
+  return [fallback];
+}
+
 async function getBadgesByProfile(profileIds: string[]) {
   const uniqueProfileIds = Array.from(new Set(profileIds)).filter(Boolean);
   const badgesByProfile = new Map<string, UserBadge[]>();
@@ -186,8 +221,10 @@ function toProfilePost(row: {
   author_id?: string;
   caption: string;
   id: string;
+  impressions_count?: number | null;
   likes_count: number;
   media_url: string;
+  media_urls?: string | null;
   profiles?: RelationProfile;
   status?: "pending" | "published" | "rejected";
   type: "image_audio" | "image_text" | "video_text";
@@ -200,8 +237,10 @@ function toProfilePost(row: {
     caption: row.caption,
     handle: referralCode || row.author_id,
     id: row.id,
+    impressionsCount: row.impressions_count ?? 0,
     likesCount: row.likes_count,
     mediaUrl: row.media_url,
+    mediaUrls: parseMediaUrls(row.media_urls, row.media_url),
     status: row.status ?? "published",
     type: row.type,
   };
@@ -272,10 +311,15 @@ async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
       commentsCount: row.comments_count,
       handle: publicHandle(row.author_id, referralCode),
       id: row.id,
+      impressionsCount: row.impressions_count ?? 0,
       likedByViewer: likedIds.has(row.id),
       likesCount: row.likes_count,
       mediaUrl: row.media_url,
+      mediaUrls: parseMediaUrls(row.media_urls, row.media_url),
+      sharesCount: row.shares_count ?? 0,
       type: row.type,
+      videoWatchSecondsTotal: row.video_watch_seconds_total ?? 0,
+      videoWatchSessionsCount: row.video_watch_sessions_count ?? 0,
     };
   });
 }
@@ -285,7 +329,7 @@ export async function getFeedPosts() {
   const viewerId = await getViewerId();
   const { data, error } = await supabase
     .from("posts")
-    .select("id, author_id, type, caption, media_url, audio_url, likes_count, bookmarks_count, comments_count, profiles:author_id(display_name, referral_code)")
+    .select("id, author_id, type, caption, media_url, media_urls, audio_url, likes_count, impressions_count, bookmarks_count, comments_count, shares_count, video_watch_seconds_total, video_watch_sessions_count, profiles:author_id(display_name, referral_code)")
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(30);
@@ -306,7 +350,7 @@ export async function getPostById(postId: string) {
   const viewerId = await getViewerId();
   const { data, error } = await supabase
     .from("posts")
-    .select("id, author_id, type, caption, media_url, audio_url, likes_count, bookmarks_count, comments_count, profiles:author_id(display_name, referral_code)")
+    .select("id, author_id, type, caption, media_url, media_urls, audio_url, likes_count, impressions_count, bookmarks_count, comments_count, shares_count, video_watch_seconds_total, video_watch_sessions_count, profiles:author_id(display_name, referral_code)")
     .eq("id", postId)
     .eq("status", "published")
     .maybeSingle();
@@ -323,6 +367,61 @@ export async function getPostById(postId: string) {
   return post ?? null;
 }
 
+export async function recordPostImpression(postId: string) {
+  if (!uuidPattern.test(postId)) {
+    return;
+  }
+
+  const viewerId = await getViewerId();
+  if (!viewerId) {
+    return;
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.rpc("increment_post_counter", {
+    counter_delta: 1,
+    counter_name: "impressions_count",
+    target_post_id: postId,
+    viewer_profile_id: viewerId,
+  });
+
+  if (error && !error.message.includes("Post is not available")) {
+    throw new Error(error.message);
+  }
+}
+
+export async function getOwnPostAnalytics(postId: string): Promise<PostAnalytics | null> {
+  if (!uuidPattern.test(postId)) {
+    return null;
+  }
+
+  const viewerId = await getViewerId();
+  if (!viewerId) {
+    return null;
+  }
+
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data, error } = await supabase
+    .from("posts")
+    .select("author_id, likes_count, bookmarks_count, comments_count, impressions_count, shares_count, video_watch_seconds_total, video_watch_sessions_count")
+    .eq("id", postId)
+    .maybeSingle();
+
+  if (error || !data || data.author_id !== viewerId) {
+    return null;
+  }
+
+  const sessions = data.video_watch_sessions_count ?? 0;
+  return {
+    avgWatchSeconds: sessions > 0 ? Math.round((data.video_watch_seconds_total ?? 0) / sessions) : null,
+    bookmarksCount: data.bookmarks_count ?? 0,
+    commentsCount: data.comments_count ?? 0,
+    impressionsCount: data.impressions_count ?? 0,
+    likesCount: data.likes_count ?? 0,
+    sharesCount: data.shares_count ?? 0,
+  };
+}
+
 export async function getOwnProfileData() {
   const viewerId = await getViewerId();
   if (!viewerId) {
@@ -334,13 +433,13 @@ export async function getOwnProfileData() {
     supabase.from("profiles").select("id, display_name, referral_code, referral_count").eq("id", viewerId).maybeSingle(),
     supabase
       .from("posts")
-      .select("id, type, status, caption, media_url, likes_count")
+      .select("id, type, status, caption, media_url, media_urls, likes_count, impressions_count")
       .eq("author_id", viewerId)
       .order("created_at", { ascending: false })
       .limit(60),
     supabase
       .from("post_bookmarks")
-      .select("posts:post_id(id, author_id, type, status, caption, media_url, likes_count, profiles:author_id(display_name, referral_code))")
+      .select("posts:post_id(id, author_id, type, status, caption, media_url, media_urls, likes_count, impressions_count, profiles:author_id(display_name, referral_code))")
       .eq("profile_id", viewerId)
       .order("created_at", { ascending: false })
       .limit(60),
@@ -382,6 +481,7 @@ export async function getOwnProfileData() {
     pendingPosts: ownPosts.filter((post) => post.status === "pending"),
     posts: ownPosts,
     publishedPosts: ownPosts.filter((post) => post.status === "published"),
+    rejectedPosts: ownPosts.filter((post) => post.status === "rejected"),
     savedPosts,
   };
 }
@@ -406,7 +506,7 @@ export async function getPublicProfileData(identifier: string) {
   const [{ data, error }, badgesByProfile] = await Promise.all([
     supabase
       .from("posts")
-      .select("id, type, status, caption, media_url, likes_count")
+      .select("id, type, status, caption, media_url, media_urls, likes_count, impressions_count")
       .eq("author_id", profile.id)
       .eq("status", "published")
       .order("created_at", { ascending: false })

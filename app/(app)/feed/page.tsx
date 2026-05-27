@@ -22,7 +22,7 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
               <FeedCard key={post.id} post={post} />
             ))}
             {feedPosts.length === 0 ? (
-              <div className="grid min-h-[calc(100svh-112px)] place-items-center rounded-[5px] border border-white/10 bg-white/[0.045] p-6 text-center text-muted md:min-h-[720px]">
+              <div className="grid min-h-[calc(100svh-132px)] place-items-center rounded-[5px] border border-white/10 bg-white/[0.045] p-6 text-center text-muted md:min-h-[700px]">
                 No published posts yet.
               </div>
             ) : null}

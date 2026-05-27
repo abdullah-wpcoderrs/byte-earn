@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   numeric,
   primaryKey,
@@ -106,34 +107,45 @@ export const posts = pgTable("posts", {
   status: postStatus("status").notNull().default("pending"),
   caption: text("caption").notNull(),
   mediaUrl: text("media_url").notNull(),
+  mediaUrls: text("media_urls").notNull().default("[]"),
   audioUrl: text("audio_url"),
   likesCount: integer("likes_count").notNull().default(0),
+  impressionsCount: integer("impressions_count").notNull().default(0),
   bookmarksCount: integer("bookmarks_count").notNull().default(0),
   commentsCount: integer("comments_count").notNull().default(0),
+  sharesCount: integer("shares_count").notNull().default(0),
+  videoWatchSecondsTotal: integer("video_watch_seconds_total").notNull().default(0),
+  videoWatchSessionsCount: integer("video_watch_sessions_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const postLikes = pgTable("post_likes", {
   id: uuid("id").defaultRandom().primaryKey(),
-  postId: uuid("post_id").notNull().references(() => posts.id),
+  postId: uuid("post_id").notNull().references(() => posts.id, { onDelete: "cascade" }),
   profileId: uuid("profile_id").notNull().references(() => profiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("post_likes_post_profile_unique").on(table.postId, table.profileId),
+]);
 
 export const postBookmarks = pgTable("post_bookmarks", {
   id: uuid("id").defaultRandom().primaryKey(),
-  postId: uuid("post_id").notNull().references(() => posts.id),
+  postId: uuid("post_id").notNull().references(() => posts.id, { onDelete: "cascade" }),
   profileId: uuid("profile_id").notNull().references(() => profiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("post_bookmarks_post_profile_unique").on(table.postId, table.profileId),
+]);
 
 export const postComments = pgTable("post_comments", {
   id: uuid("id").defaultRandom().primaryKey(),
-  postId: uuid("post_id").notNull().references(() => posts.id),
+  postId: uuid("post_id").notNull().references(() => posts.id, { onDelete: "cascade" }),
   profileId: uuid("profile_id").notNull().references(() => profiles.id),
   body: text("body").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("post_comments_post_created_at_idx").on(table.postId, table.createdAt),
+]);
 
 export const creditLedger = pgTable("credit_ledger", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -287,6 +299,24 @@ export const auditLogs = pgTable("audit_logs", {
   metadata: text("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const systemFailures = pgTable("system_failures", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  category: text("category").notNull(),
+  message: text("message").notNull(),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const rateLimitBuckets = pgTable("rate_limit_buckets", {
+  bucketKey: text("bucket_key").primaryKey(),
+  attempts: integer("attempts").notNull().default(0),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull().defaultNow(),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("rate_limit_buckets_reset_at_idx").on(table.resetAt),
+]);
 
 export const notificationReads = pgTable(
   "notification_reads",

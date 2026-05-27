@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   });
 
   try {
-    const limit = checkRateLimit(`referral:${clientIp}:${normalizedCode}`, 30, 60 * 60 * 1000);
+    const limit = await checkRateLimit(`referral:${clientIp}:${normalizedCode}`, 30, 60 * 60 * 1000);
     if (!limit.allowed) {
       return response;
     }
