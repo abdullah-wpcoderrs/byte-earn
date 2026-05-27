@@ -22,7 +22,7 @@ export function FeedCard({ post }: FeedCardProps) {
   return (
     <article className="relative flex min-h-[calc(100svh-132px)] snap-start flex-col justify-end overflow-hidden rounded-[5px] border border-white/10 bg-slate-950 md:min-h-[700px]">
       <PostImpressionTracker postId={post.id} />
-      <FeedMedia caption={post.caption} mediaUrl={post.mediaUrl} mediaUrls={post.mediaUrls} postId={post.id} type={post.type} />
+      <FeedMedia audioUrl={post.audioUrl} caption={post.caption} mediaUrl={post.mediaUrl} mediaUrls={post.mediaUrls} postId={post.id} type={post.type} />
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08),rgba(2,6,23,0.38)_44%,rgba(2,6,23,0.92))]" />
       <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-[5px] border border-white/15 bg-black/36 px-3 py-2 text-cyan-100 backdrop-blur">
         <Icon className="size-4" />
