@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { recordVideoWatchAction } from "@/app/(app)/posts/actions";
 
 type FeedMediaProps = {
@@ -17,8 +17,29 @@ export function FeedMedia({ caption, mediaUrl, mediaUrls, postId, type }: FeedMe
   const [activeIndex, setActiveIndex] = useState(0);
   const startedAtRef = useRef<number | null>(null);
   const lastReportedAtRef = useRef(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const activeUrl = urls[activeIndex] ?? mediaUrl;
   const hasCarousel = type === "image_text" && urls.length > 1;
+
+  useEffect(() => {
+    if (type !== "video_text") {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    const playVideo = async () => {
+      try {
+        await video.play();
+      } catch {
+      }
+    };
+
+    playVideo();
+  }, [activeUrl, type]);
 
   function move(delta: number) {
     setActiveIndex((index) => (index + delta + urls.length) % urls.length);
@@ -37,8 +58,11 @@ export function FeedMedia({ caption, mediaUrl, mediaUrls, postId, type }: FeedMe
 
     return (
       <video
+        autoPlay
         className="absolute inset-0 size-full bg-slate-950 object-cover"
         controls
+        loop
+        muted
         onEnded={reportWatch}
         onPause={reportWatch}
         onPlay={() => {
@@ -46,6 +70,7 @@ export function FeedMedia({ caption, mediaUrl, mediaUrls, postId, type }: FeedMe
         }}
         playsInline
         preload="metadata"
+        ref={videoRef}
         src={activeUrl}
       />
     );

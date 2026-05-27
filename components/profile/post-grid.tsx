@@ -61,12 +61,12 @@ export function PostGrid({ posts, showOwnerControls = false }: PostGridProps) {
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.04),rgba(2,6,23,0.82))]" />
             <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-[5px] bg-black/40 px-2 py-1 text-[10px] text-cyan-100 backdrop-blur">
               <Icon className="size-3" />
-              {badge}
+              <span className="hidden sm:inline">{badge}</span>
             </div>
             <div className={`absolute right-2 top-2 rounded-[5px] px-2 py-1 text-[10px] font-semibold backdrop-blur ${statusTone}`}>
               {statusCopy[post.status]}
             </div>
-            <div className="absolute bottom-2 left-2 right-2">
+            <div className="absolute bottom-2 left-2 right-2 hidden sm:block">
               {post.handle ? <p className="mb-1 truncate text-[10px] text-cyan-100">@{post.handle}</p> : null}
               <p className="line-clamp-3 font-medium leading-4 text-white">{truncateWords(post.caption)}</p>
               <p className="mt-1 flex items-center gap-2 text-[10px] text-slate-300">
@@ -84,7 +84,7 @@ export function PostGrid({ posts, showOwnerControls = false }: PostGridProps) {
         );
 
         const ownerControls = showOwnerControls ? (
-          <div className={`grid gap-1.5 rounded-b-[5px] border-x border-b border-white/10 bg-white/[0.035] p-1.5 ${post.status === "rejected" ? "grid-cols-4" : "grid-cols-3"}`}>
+          <div className={`hidden gap-1.5 rounded-b-[5px] border-x border-b border-white/10 bg-white/[0.035] p-1.5 sm:grid ${post.status === "rejected" ? "grid-cols-4" : "grid-cols-3"}`}>
             <IconToolButton icon={<Pencil className="size-4" />} label="Edit post" onClick={() => setEditingPost(post)} />
             <IconToolButton icon={<Share2 className="size-4" />} label="Share post" onClick={() => sharePost(post.id, post.caption)} />
             {post.status === "rejected" ? (

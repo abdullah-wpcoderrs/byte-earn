@@ -23,6 +23,11 @@ type PostActionSnapshot = {
   video_watch_sessions_count: number;
 };
 
+function isMissingPostRpc(message: string) {
+  return message.includes("increment_post_counter") ||
+    message.includes("get_post_action_snapshot");
+}
+
 async function requireUserId() {
   const supabase = await createClient();
   const {
@@ -94,6 +99,10 @@ async function incrementPublishedPostCounter(
   });
 
   if (error) {
+    if (isMissingPostRpc(error.message)) {
+      // Keep interactions working until the matching SQL wrapper is installed.
+      return null;
+    }
     throw new Error(error.message);
   }
 
@@ -108,6 +117,52 @@ async function getPostActionSnapshot(postId: string, viewerId: string) {
   });
 
   if (error) {
+    if (isMissingPostRpc(error.message)) {
+      const [postResult, likeResult, bookmarkResult] = await Promise.all([
+        supabase
+          .from("posts")
+          .select("likes_count, bookmarks_count, comments_count, impressions_count, shares_count, video_watch_seconds_total, video_watch_sessions_count")
+          .eq("id", postId)
+          .maybeSingle(),
+        supabase
+          .from("post_likes")
+          .select("id")
+          .eq("post_id", postId)
+          .eq("profile_id", viewerId)
+          .maybeSingle(),
+        supabase
+          .from("post_bookmarks")
+          .select("id")
+          .eq("post_id", postId)
+          .eq("profile_id", viewerId)
+          .maybeSingle(),
+      ]);
+
+      if (postResult.error) {
+        throw new Error(postResult.error.message);
+      }
+      if (likeResult.error) {
+        throw new Error(likeResult.error.message);
+      }
+      if (bookmarkResult.error) {
+        throw new Error(bookmarkResult.error.message);
+      }
+      if (!postResult.data) {
+        throw new Error("Post is not available.");
+      }
+
+      return {
+        bookmarkedByViewer: Boolean(bookmarkResult.data),
+        bookmarksCount: postResult.data.bookmarks_count ?? 0,
+        commentsCount: postResult.data.comments_count ?? 0,
+        impressionsCount: postResult.data.impressions_count ?? 0,
+        likedByViewer: Boolean(likeResult.data),
+        likesCount: postResult.data.likes_count ?? 0,
+        sharesCount: postResult.data.shares_count ?? 0,
+        videoWatchSecondsTotal: postResult.data.video_watch_seconds_total ?? 0,
+        videoWatchSessionsCount: postResult.data.video_watch_sessions_count ?? 0,
+      };
+    }
     throw new Error(error.message);
   }
 

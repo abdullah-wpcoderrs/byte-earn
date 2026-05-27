@@ -82,6 +82,10 @@ type PostRow = {
   video_watch_sessions_count?: number | null;
 };
 
+function isMissingPostCounterRpc(message: string) {
+  return message.includes("increment_post_counter");
+}
+
 type CommentRow = {
   body: string;
   id: string;
@@ -377,7 +381,7 @@ export async function recordPostImpression(postId: string) {
     return;
   }
 
-  const supabase = createAdminClient();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const { error } = await supabase.rpc("increment_post_counter", {
     counter_delta: 1,
     counter_name: "impressions_count",
@@ -385,7 +389,7 @@ export async function recordPostImpression(postId: string) {
     viewer_profile_id: viewerId,
   });
 
-  if (error && !error.message.includes("Post is not available")) {
+  if (error && !error.message.includes("Post is not available") && !isMissingPostCounterRpc(error.message)) {
     throw new Error(error.message);
   }
 }
