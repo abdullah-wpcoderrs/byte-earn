@@ -225,6 +225,13 @@
       "when": 1780042000000,
       "tag": "0031_profile_username",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1780045200000,
+      "tag": "0032_post_counter_ambiguity_fix",
+      "breakpoints": true
     }
   ]
 }
