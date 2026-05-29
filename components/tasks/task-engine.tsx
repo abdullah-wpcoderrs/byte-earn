@@ -10,9 +10,10 @@ interface TaskEngineProps {
   tasks: SponsoredTask[];
   progress: Map<string, number>;
   profileId: string;
+  referralCode?: string;
 }
 
-export function TaskEngine({ tasks, progress, profileId }: TaskEngineProps) {
+export function TaskEngine({ tasks, progress, profileId, referralCode }: TaskEngineProps) {
   const cpaTasks = tasks.filter((t) => t.provider === "cpagrip");
   const monetagTasks = tasks.filter((t) => t.provider === "monetag");
   const internalTasks = tasks.filter((t) => t.provider === "internal");
@@ -46,7 +47,7 @@ export function TaskEngine({ tasks, progress, profileId }: TaskEngineProps) {
           <h2 className="text-xl font-semibold mb-4">Sponsored Campaigns</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {internalTasks.map((task) => (
-              <InternalTaskCard key={task.id} task={task} completed={progress.get(task.id) || 0} profileId={profileId} />
+              <InternalTaskCard key={task.id} task={task} completed={progress.get(task.id) || 0} profileId={profileId} referralCode={referralCode} />
             ))}
           </div>
         </section>
@@ -133,14 +134,17 @@ function MonetagCard({ task, completed }: { task: SponsoredTask; completed: numb
   );
 }
 
-function InternalTaskCard({ task, completed, profileId }: { task: SponsoredTask; completed: number; profileId: string }) {
+function InternalTaskCard({ task, completed, profileId, referralCode }: { task: SponsoredTask; completed: number; profileId: string; referralCode?: string }) {
   const [loading, setLoading] = useState(false);
   const isFinished = completed >= task.limitPerUser;
 
   const handleShare = async () => {
     setLoading(true);
     const platformUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-    const shareUrl = `${platformUrl}/?ref=${profileId}`;
+    
+    // Embed and encode user's referral code inside the branded link, fallback to profileId
+    const refToken = referralCode ? btoa(referralCode) : btoa(profileId);
+    const shareUrl = `${platformUrl}/ref/${refToken}`;
     const shareText = `${task.title}\n\n${task.description}\n\n${shareUrl}`;
 
     try {
@@ -170,6 +174,14 @@ function InternalTaskCard({ task, completed, profileId }: { task: SponsoredTask;
     }
   };
 
+  const isVideoUrl = (url: string | null | undefined) => {
+    if (!url) return false;
+    const extension = url.split("?")[0].split(".").pop()?.toLowerCase();
+    return ["mp4", "webm", "ogg", "mov", "quicktime"].includes(extension || "");
+  };
+
+  const isVideo = isVideoUrl(task.mediaUrl);
+
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 flex flex-col justify-between overflow-hidden">
       <div>
@@ -177,8 +189,22 @@ function InternalTaskCard({ task, completed, profileId }: { task: SponsoredTask;
         <p className="text-sm text-slate-400 mt-1 line-clamp-2">{task.description}</p>
       </div>
       {task.mediaUrl && (
-        <div className="mt-4 -mx-5 px-5">
-          <img src={task.mediaUrl} alt={task.title} className="w-full h-32 object-cover rounded-md" />
+        <div className="mt-4 overflow-hidden rounded-md border border-white/5 bg-slate-950 flex items-center justify-center h-32 relative">
+          {isVideo ? (
+            <video
+              src={task.mediaUrl}
+              controls
+              muted
+              playsInline
+              className="w-full h-full object-contain rounded-md"
+            />
+          ) : (
+            <img
+              src={task.mediaUrl}
+              alt={task.title}
+              className="w-full h-full object-contain rounded-md"
+            />
+          )}
         </div>
       )}
       <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-800/50">

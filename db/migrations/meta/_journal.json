@@ -246,6 +246,13 @@
       "when": 1780052400000,
       "tag": "0034_sponsored_tasks_toggle",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1780056000000,
+      "tag": "0035_sponsored_tasks_media_bucket",
+      "breakpoints": true
     }
   ]
 }

@@ -1,8 +1,7 @@
-import Link from "next/link";
-import { PlusCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
+import { CreateTaskModal } from "@/components/admin/create-task-modal";
 import { toggleSponsoredTaskStatus, deleteSponsoredTask } from "./actions";
+import { Pause, Play, Trash2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +10,7 @@ export default async function AdminTasksPage() {
 
   const { data: tasks, error } = await supabase
     .from("sponsored_tasks")
-    .select("id, title, provider, status, reward_credits, completions_count")
+    .select("id, title, provider, status, reward_credits, completions_count, description, task_url, media_url, limit_per_user")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -25,11 +24,7 @@ export default async function AdminTasksPage() {
           <p className="text-muted">Manage sponsored tasks and campaigns</p>
           <h1 className="mt-1 text-[28px] font-semibold leading-tight">Sponsored Tasks</h1>
         </div>
-        <Link href="/admin/tasks/create">
-          <Button icon={<PlusCircle className="size-4" />} type="button">
-            Create Task
-          </Button>
-        </Link>
+        <CreateTaskModal />
       </section>
 
       <div className="glass overflow-x-auto rounded-lg">
@@ -62,29 +57,40 @@ export default async function AdminTasksPage() {
                   <td className="px-6 py-4 text-cyan-400 font-semibold">{task.reward_credits}</td>
                   <td className="px-6 py-4 text-right">{task.completions_count ?? 0}</td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {/* Inline Edit Campaign Trigger Modal */}
+                      <CreateTaskModal task={task as any} />
+
+                      {/* Toggle Status Icon Button */}
                       <form action={toggleSponsoredTaskStatus}>
                         <input type="hidden" name="taskId" value={task.id} />
                         <input type="hidden" name="currentStatus" value={task.status || ""} />
                         <button
                           type="submit"
-                          className={`rounded-[5px] cursor-pointer border px-2.5 py-1 text-[11px] font-semibold transition ${
+                          className={`grid size-7 cursor-pointer place-items-center rounded-[5px] border transition ${
                             task.status === "active"
                               ? "border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
                               : "border-green-500/20 bg-green-500/10 text-green-400 hover:bg-green-500/20"
                           }`}
+                          title={task.status === "active" ? "Pause Task" : "Activate Task"}
                         >
-                          {task.status === "active" ? "Pause" : "Activate"}
+                          {task.status === "active" ? (
+                            <Pause className="size-3.5" />
+                          ) : (
+                            <Play className="size-3.5" />
+                          )}
                         </button>
                       </form>
                       
+                      {/* Delete Icon Button */}
                       <form action={deleteSponsoredTask}>
                         <input type="hidden" name="taskId" value={task.id} />
                         <button
                           type="submit"
-                          className="rounded-[5px] cursor-pointer border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/20"
+                          className="grid size-7 cursor-pointer place-items-center rounded-[5px] border border-red-500/20 bg-red-500/10 text-red-400 transition hover:bg-red-500/20"
+                          title="Delete Task"
                         >
-                          Delete
+                          <Trash2 className="size-3.5" />
                         </button>
                       </form>
                     </div>

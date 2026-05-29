@@ -74,6 +74,18 @@ function shouldUseLocalFallback(message: string) {
   );
 }
 
+function shouldUseTransientLocalFallback(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+  return (
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("enotfound")
+  );
+}
+
 export function getClientIp(headers: Headers) {
   const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return forwarded || headers.get("x-real-ip") || "127.0.0.1";
@@ -86,32 +98,40 @@ export async function checkRateLimit(key: string, limit: number, windowMs: numbe
     return checkRateLimitLocally(key, limit, windowMs);
   }
 
-  const { data, error } = await supabase.rpc("consume_rate_limit", {
-    bucket_key: key,
-    max_attempts: limit,
-    window_ms: windowMs,
-  });
+  try {
+    const { data, error } = await supabase.rpc("consume_rate_limit", {
+      bucket_key: key,
+      max_attempts: limit,
+      window_ms: windowMs,
+    });
 
-  if (error) {
-    if (shouldUseLocalFallback(error.message)) {
-      // Local fallback keeps development unblocked until the SQL function is installed.
-      return checkRateLimitLocally(key, limit, windowMs);
+    if (error) {
+      if (shouldUseLocalFallback(error.message)) {
+        // Local fallback keeps development unblocked until the SQL function is installed.
+        return checkRateLimitLocally(key, limit, windowMs);
+      }
+
+      throw new Error(error.message);
     }
 
-    throw new Error(error.message);
+    const result = data?.[0];
+
+    if (!result) {
+      throw new Error("Rate limit service unavailable.");
+    }
+
+    return {
+      allowed: Boolean(result.allowed),
+      remaining: Number(result.remaining ?? 0),
+      resetAt: new Date(result.reset_at).getTime(),
+    };
+  } catch (error) {
+    // A temporary Supabase network failure should not hard-block auth routes.
+    if (shouldUseTransientLocalFallback(error)) {
+      return checkRateLimitLocally(key, limit, windowMs);
+    }
+    throw error;
   }
-
-  const result = data?.[0];
-
-  if (!result) {
-    throw new Error("Rate limit service unavailable.");
-  }
-
-  return {
-    allowed: Boolean(result.allowed),
-    remaining: Number(result.remaining ?? 0),
-    resetAt: new Date(result.reset_at).getTime(),
-  };
 }
 
 export async function assertRateLimit(key: string, limit: number, windowMs: number) {

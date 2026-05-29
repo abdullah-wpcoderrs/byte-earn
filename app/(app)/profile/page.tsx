@@ -61,7 +61,7 @@ export default async function ProfilePage() {
         </div>
         <details className="mt-5 rounded-[5px] border border-white/10 bg-white/[0.035] p-4">
           <summary className="cursor-pointer list-none text-base font-semibold text-white marker:hidden">
-            <span className="inline-flex min-h-10 items-center justify-center rounded-[5px] border border-white/10 bg-white/[0.065] px-3 font-semibold text-slate-100">
+            <span className="inline-flex h-8 items-center justify-center rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 text-[11px] font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white">
               Edit profile
             </span>
           </summary>

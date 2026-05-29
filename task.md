@@ -100,8 +100,14 @@ Update the feed, single post detail page, and profile editing flow so captions, 
 ### Admin and Global Settings
 
 - [x] Create Admin UI
-  - [x] `app/admin/tasks/page.tsx` (Task list)
-  - [x] `app/admin/tasks/create/page.tsx` (Task creation form)
+  - [x] `app/admin/tasks/page.tsx` (Task list with built-in modal popup)
+  - [x] Dynamic, provider-customized client modal in `components/admin/create-task-modal.tsx`
+- [x] Support Inline Task Editing & Icon Actions
+  - [x] Create `updateSponsoredTask` server action inside `app/admin/tasks/actions.ts`
+  - [x] Update `CreateTaskModal` to support pre-filled inputs, title toggle, and dual actions
+  - [x] Replace full text action buttons with responsive `Pencil`, `Play`, `Pause`, and `Trash2` icon-only buttons inside `app/admin/tasks/page.tsx` Actions column
+- [x] Compact User Profile UI
+  - [x] Reduce the dimensions, padding, and font of the 'Edit profile' summary button inside `app/(app)/profile/page.tsx`
 - [x] Add Global Toggle for Sponsored Tasks
   - [x] Add `sponsored_tasks_enabled` to `platform_settings` table
   - [x] Update TypeScript definitions and default settings in `lib/platform-settings.ts`
@@ -109,6 +115,17 @@ Update the feed, single post detail page, and profile editing flow so captions, 
   - [x] Parse and update `sponsored_tasks_enabled` in `app/admin/actions.ts`
   - [x] Implement custom waiting state screen on `/tasks` page when toggle is off
   - [x] Add Tasks pages link to desktop and mobile admin navigation sidebars
+- [x] Obfuscate Referral Sharing URL for Sponsored Campaigns
+  - [x] Fetch user referral_code inside `app/(app)/tasks/page.tsx`
+  - [x] Base64-encode referral code/profile ID inside `components/tasks/task-engine.tsx`
+  - [x] Generate clean, custom branded links (`/ref/[base64Token]`)
+  - [x] Add robust Base64 decoding, cookie normalization, and UUID lookup inside `/ref/[code]` route
+  - [x] Redirect landing browsers to `/?ref=[base64Token]` to hide plain text details in address bar
+- [x] Media Upload for Internal Sponsored Ads
+  - [x] Create dedicated public `task-media` storage bucket in SQL migration `0035_sponsored_tasks_media_bucket.sql`
+  - [x] Integrate file upload capability to `createSponsoredTask` and `updateSponsoredTask` server actions
+  - [x] Build an intuitive drop-zone file input (Image / Video) with live media preview in `CreateTaskModal`
+
 
 ### Verification
 

@@ -71,6 +71,12 @@ export default async function TasksPage() {
 
   const tasks = await getActiveTasks();
   const progress = await getUserTaskProgress(user.id);
+  
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("referral_code")
+    .eq("id", user.id)
+    .maybeSingle();
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-4">
@@ -81,7 +87,12 @@ export default async function TasksPage() {
         </p>
       </div>
 
-      <TaskEngine tasks={tasks} progress={progress} profileId={user.id} />
+      <TaskEngine
+        tasks={tasks}
+        progress={progress}
+        profileId={user.id}
+        referralCode={profile?.referral_code || ""}
+      />
     </div>
   );
 }
