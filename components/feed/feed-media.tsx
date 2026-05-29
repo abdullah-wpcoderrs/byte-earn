@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { recordVideoWatchAction } from "@/app/(app)/posts/actions";
 
@@ -18,8 +18,10 @@ export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postI
   const [activeIndex, setActiveIndex] = useState(0);
   const [hasFocusWithin, setHasFocusWithin] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [playbackIndicator, setPlaybackIndicator] = useState<"pause" | "play" | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const lastReportedAtRef = useRef(0);
+  const playbackIndicatorTimeoutRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const activeUrl = urls[activeIndex] ?? mediaUrl;
@@ -102,6 +104,35 @@ export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postI
     syncAudioMute(nextMuted);
   }
 
+  function showPlaybackIndicator(nextIndicator: "pause" | "play") {
+    setPlaybackIndicator(nextIndicator);
+
+    if (playbackIndicatorTimeoutRef.current) {
+      window.clearTimeout(playbackIndicatorTimeoutRef.current);
+    }
+
+    playbackIndicatorTimeoutRef.current = window.setTimeout(() => {
+      setPlaybackIndicator(null);
+      playbackIndicatorTimeoutRef.current = null;
+    }, 420);
+  }
+
+  function toggleVideoPlayback() {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    if (video.paused) {
+      video.play().catch(() => undefined);
+      showPlaybackIndicator("play");
+      return;
+    }
+
+    video.pause();
+    showPlaybackIndicator("pause");
+  }
+
   function move(delta: number) {
     setActiveIndex((index) => (index + delta + urls.length) % urls.length);
   }
@@ -123,6 +154,12 @@ export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postI
         onBlur={(event) => setHasFocusWithin(event.currentTarget.contains(event.relatedTarget as Node | null))}
         onFocus={() => setHasFocusWithin(true)}
       >
+        <button
+          aria-label="Toggle video playback"
+          className="absolute inset-0 z-10 block"
+          onClick={toggleVideoPlayback}
+          type="button"
+        />
         <video
           autoPlay
           className="absolute inset-0 size-full bg-slate-950 object-cover"
@@ -138,6 +175,7 @@ export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postI
           ref={videoRef}
           src={activeUrl}
         />
+        <PlaybackIndicator state={playbackIndicator} />
         {canControlSound ? (
           <MediaSoundButton hasFocusWithin={hasFocusWithin} isMuted={isMuted} onToggle={toggleSound} />
         ) : null}
@@ -205,5 +243,21 @@ function MediaSoundButton({ hasFocusWithin, isMuted, onToggle }: { hasFocusWithi
     >
       <Icon className="size-4" />
     </button>
+  );
+}
+
+function PlaybackIndicator({ state }: { state: "pause" | "play" | null }) {
+  if (!state) {
+    return null;
+  }
+
+  const Icon = state === "play" ? Play : Pause;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center">
+      <div className="grid size-16 animate-[ping_420ms_ease-out_1] place-items-center rounded-full border border-white/20 bg-black/45 text-white shadow-xl backdrop-blur">
+        <Icon className="size-7" />
+      </div>
+    </div>
   );
 }

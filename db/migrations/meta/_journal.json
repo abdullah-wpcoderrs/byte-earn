@@ -64,6 +64,160 @@
       "when": 1779525338409,
       "tag": "0008_post_engagement_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779525338410,
+      "tag": "0009_badge_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779525338411,
+      "tag": "0010_email_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779525338412,
+      "tag": "0011_referral_rewards",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779525338413,
+      "tag": "0012_finance_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779525338414,
+      "tag": "0013_reward_rule_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779525338415,
+      "tag": "0014_admin_moderation_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1779525338416,
+      "tag": "0015_platform_upload_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779525338417,
+      "tag": "0016_audit_log_repair",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1779525338418,
+      "tag": "0017_profile_badges",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779525338419,
+      "tag": "0018_notification_email_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779525338420,
+      "tag": "0019_posts_admin_moderation_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1779525338421,
+      "tag": "0020_post_engagement_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1779525338422,
+      "tag": "0021_post_media_urls",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779525338423,
+      "tag": "0022_post_impressions",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779525338424,
+      "tag": "0023_post_analytics_counters",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779525338425,
+      "tag": "0024_phase1_source_of_truth",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779525338426,
+      "tag": "0025_post_counter_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779525338427,
+      "tag": "0026_phase3_post_action_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1779525338428,
+      "tag": "0027_phase4_source_of_truth",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1779525338429,
+      "tag": "0028_shared_rate_limit_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1779525338430,
+      "tag": "0029_public_post_rpc_wrappers",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1779525338431,
+      "tag": "0030_public_rate_limit_wrapper",
+      "breakpoints": true
     }
   ]
 }
