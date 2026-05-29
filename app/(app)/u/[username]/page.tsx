@@ -24,7 +24,8 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
               {data.profile.initials}
             </div>
             <div>
-              <h1 className="text-base font-semibold">{data.profile.displayName ?? "Creator"}</h1>
+              <h1 className="text-base font-semibold">{data.profile.displayName ?? data.profile.username ?? "Creator"}</h1>
+              <p className="mt-1 text-cyan-100">{data.profile.username ? `@${data.profile.username}` : `Referral: ${data.profile.referralCode}`}</p>
               <p className="mt-1 text-muted">
                 {data.posts.length} published posts - {data.profile.referralCount} referrals
               </p>

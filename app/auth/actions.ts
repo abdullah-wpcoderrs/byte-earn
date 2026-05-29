@@ -8,6 +8,8 @@ import { assertRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createUniqueReferralCode } from "@/lib/referrals";
 import { createClient } from "@/lib/supabase/server";
 
+const usernamePattern = /^[a-z0-9_]{3,24}$/;
+
 function readRequiredString(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -18,10 +20,20 @@ function readRequiredString(formData: FormData, key: string) {
   return value.trim();
 }
 
+function normalizeUsername(value: string) {
+  return value.trim().toLowerCase();
+}
+
 export async function signUpAction(formData: FormData) {
   const displayName = readRequiredString(formData, "displayName");
+  const username = normalizeUsername(readRequiredString(formData, "username"));
   const email = readRequiredString(formData, "email");
   const password = readRequiredString(formData, "password");
+
+  if (!usernamePattern.test(username)) {
+    redirect("/?auth_error=Username%20must%20use%203%20to%2024%20lowercase%20letters,%20numbers,%20or%20underscores.");
+  }
+
   const requestHeaders = await headers();
   const clientIp = getClientIp(requestHeaders);
   await assertRateLimit(`auth:signup:${clientIp}:${email.toLowerCase()}`, 5, 10 * 60 * 1000);
@@ -32,12 +44,27 @@ export async function signUpAction(formData: FormData) {
       ? referralCodeInput.trim().toUpperCase()
       : cookieReferralCode?.trim().toUpperCase() ?? "";
   const supabase = await createClient();
+  const { data: existingUsername, error: existingUsernameError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (existingUsernameError) {
+    redirect(`/?auth_error=${encodeURIComponent(existingUsernameError.message)}`);
+  }
+
+  if (existingUsername) {
+    redirect("/?auth_error=Username%20is%20already%20taken.");
+  }
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         display_name: displayName,
+        username,
       },
     },
   });
@@ -64,6 +91,7 @@ export async function signUpAction(formData: FormData) {
       referred_by: referrer?.id,
       status: isPaystackActivationEnabled() ? "pending_payment" : "onboarding",
       updated_at: new Date().toISOString(),
+      username,
     });
 
   if (profileError) {

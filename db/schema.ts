@@ -49,6 +49,7 @@ export const profiles = pgTable("profiles", {
   role: userRole("role").notNull().default("user"),
   status: accountStatus("status").notNull().default("pending_payment"),
   displayName: text("display_name"),
+  username: text("username"),
   referralCode: text("referral_code").notNull().unique(),
   referredBy: uuid("referred_by"),
   bankName: text("bank_name"),

@@ -122,15 +122,31 @@ export default function AuthGatewayPage() {
 
               <form action={mode === "signup" ? signUpAction : signInAction} className="mt-5 grid gap-3">
                 {mode === "signup" ? (
-                  <label className="grid gap-2">
-                    <span className="font-medium text-slate-200">Full name</span>
-                    <input
-                      className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
-                      name="displayName"
-                      placeholder="Amina Kareem"
-                      type="text"
-                    />
-                  </label>
+                  <>
+                    <label className="grid gap-2">
+                      <span className="font-medium text-slate-200">Full name</span>
+                      <input
+                        className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+                        name="displayName"
+                        placeholder="Amina Kareem"
+                      required
+                        type="text"
+                      />
+                    </label>
+                    <label className="grid gap-2">
+                      <span className="font-medium text-slate-200">Username</span>
+                      <input
+                        className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+                        maxLength={24}
+                        name="username"
+                        pattern="[a-z0-9_]{3,24}"
+                        placeholder="amina_kareem"
+                        required
+                        spellCheck={false}
+                        type="text"
+                      />
+                    </label>
+                  </>
                 ) : null}
 
                 <label className="grid gap-2">

@@ -2,7 +2,8 @@ import { ArrowLeft, BarChart3, Bookmark, Clock3, Heart, MessageCircle, Share2 } 
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { FeedCard } from "@/components/feed/feed-card";
-import { getOwnPostAnalytics, getPostById, recordPostImpression } from "@/lib/posts";
+import { ProfileBadges } from "@/components/profile/profile-badges";
+import { getOwnPostAnalytics, getPostById, getViewerId, recordPostImpression } from "@/lib/posts";
 
 export const dynamic = "force-dynamic";
 
@@ -15,32 +16,50 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
   }
 
   await recordPostImpression(id);
-  const analytics = await getOwnPostAnalytics(id);
+  const viewerId = await getViewerId();
+  const isOwner = viewerId === post.authorId;
+  const analytics = isOwner ? await getOwnPostAnalytics(id) : null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(360px,520px)_1fr]">
-      <section className="glass-strong overflow-hidden p-2">
-        <FeedCard post={post} />
+    <div className="mx-auto grid w-full max-w-6xl gap-4 lg:grid-cols-[minmax(360px,520px)_1fr] lg:items-start">
+      <section className="glass-strong overflow-hidden p-2 lg:sticky lg:top-4">
+        <FeedCard
+          className="min-h-[100svh] md:min-h-[100svh] lg:min-h-[calc(100svh-32px)]"
+          post={post}
+          showFooterMeta={false}
+        />
       </section>
-      <aside className="glass p-4">
-        <a className="mb-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.065] px-3 font-semibold text-slate-100" href="/feed">
+
+      <div className="grid gap-4 lg:max-h-[calc(100svh-32px)] lg:overflow-y-auto lg:pr-1">
+        <a className="inline-flex min-h-10 w-fit items-center justify-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.065] px-3 font-semibold text-slate-100" href="/feed">
           <ArrowLeft className="size-4" />
           Back to feed
         </a>
-        <h1 className="text-base font-semibold">{analytics ? "Post analytics" : "Post details"}</h1>
-        {analytics ? (
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Metric icon={<BarChart3 className="size-4" />} label="Impressions" value={compact(analytics.impressionsCount)} />
-            <Metric icon={<Heart className="size-4" />} label="Likes" value={compact(analytics.likesCount)} />
-            <Metric icon={<Bookmark className="size-4" />} label="Bookmarks" value={compact(analytics.bookmarksCount)} />
-            <Metric icon={<MessageCircle className="size-4" />} label="Comments" value={compact(analytics.commentsCount)} />
-            <Metric icon={<Share2 className="size-4" />} label="Shares" value={compact(analytics.sharesCount)} />
-            <Metric icon={<Clock3 className="size-4" />} label="Avg watch" value={analytics.avgWatchSeconds === null ? "N/A" : formatSeconds(analytics.avgWatchSeconds)} />
+
+        <section className="glass p-4">
+          <a className="text-base font-semibold text-white hover:text-cyan-100" href={`/u/${post.handle}`}>
+            @{post.handle}
+          </a>
+          <div className="mt-2">
+            <ProfileBadges badges={post.authorBadges} compact />
           </div>
-        ) : (
-          <p className="mt-2 leading-5 text-muted">Direct post links read published post and engagement data from the database.</p>
-        )}
-      </aside>
+          <p className="mt-4 whitespace-pre-wrap leading-6 text-slate-200">{post.caption}</p>
+        </section>
+
+        {analytics ? (
+          <section className="glass p-4">
+            <h1 className="text-base font-semibold">Post analytics</h1>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Metric icon={<BarChart3 className="size-4" />} label="Impressions" value={compact(analytics.impressionsCount)} />
+              <Metric icon={<Heart className="size-4" />} label="Likes" value={compact(analytics.likesCount)} />
+              <Metric icon={<Bookmark className="size-4" />} label="Bookmarks" value={compact(analytics.bookmarksCount)} />
+              <Metric icon={<MessageCircle className="size-4" />} label="Comments" value={compact(analytics.commentsCount)} />
+              <Metric icon={<Share2 className="size-4" />} label="Shares" value={compact(analytics.sharesCount)} />
+              <Metric icon={<Clock3 className="size-4" />} label="Avg watch" value={analytics.avgWatchSeconds === null ? "N/A" : formatSeconds(analytics.avgWatchSeconds)} />
+            </div>
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

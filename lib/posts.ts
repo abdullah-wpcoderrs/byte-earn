@@ -93,9 +93,11 @@ type CommentRow = {
   profiles:
     | {
         display_name: string | null;
+        username?: string | null;
       }
     | Array<{
         display_name: string | null;
+        username?: string | null;
       }>
     | null;
 };
@@ -104,10 +106,12 @@ type RelationProfile =
   | {
       display_name: string | null;
       referral_code?: string;
+      username?: string | null;
     }
   | Array<{
       display_name: string | null;
       referral_code?: string;
+      username?: string | null;
     }>
   | null;
 
@@ -116,6 +120,7 @@ type ProfileRow = {
   id: string;
   referral_code: string;
   referral_count: number;
+  username: string | null;
 };
 
 type ProfileBadgeRow = {
@@ -145,8 +150,8 @@ function initialsFor(name: string | null, fallback: string) {
     .toUpperCase();
 }
 
-function publicHandle(profileId: string, referralCode: string) {
-  return referralCode || profileId;
+function publicHandle(profileId: string, username: string | null | undefined, referralCode: string | undefined) {
+  return username || referralCode || profileId;
 }
 
 function firstRelation<T>(value: T | T[] | null | undefined) {
@@ -212,7 +217,7 @@ async function getBadgesByProfile(profileIds: string[]) {
   return badgesByProfile;
 }
 
-async function getViewerId() {
+export async function getViewerId() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -234,12 +239,14 @@ function toProfilePost(row: {
   type: "image_audio" | "image_text" | "video_text";
 }): ProfilePost {
   const authorProfile = firstRelation(row.profiles);
-  const referralCode = authorProfile?.referral_code ?? row.author_id ?? "";
+  const referralCode = authorProfile?.referral_code;
+  const username = authorProfile?.username ?? null;
+  const handle = publicHandle(row.author_id ?? "", username, referralCode);
 
   return {
-    author: authorProfile?.display_name ?? undefined,
+    author: username ?? authorProfile?.display_name ?? undefined,
     caption: row.caption,
-    handle: referralCode || row.author_id,
+    handle,
     id: row.id,
     impressionsCount: row.impressions_count ?? 0,
     likesCount: row.likes_count,
@@ -289,7 +296,7 @@ async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
     const existing = commentsByPost.get(comment.post_id) ?? [];
     if (existing.length < 8) {
       existing.push({
-        author: firstRelation(comment.profiles)?.display_name ?? "Creator",
+        author: firstRelation(comment.profiles)?.username ?? firstRelation(comment.profiles)?.display_name ?? "Creator",
         body: comment.body,
         id: comment.id,
       });
@@ -299,21 +306,22 @@ async function attachPostMetadata(rows: PostRow[], viewerId: string | null) {
 
   return rows.map((row): FeedPost => {
     const authorProfile = firstRelation(row.profiles as RelationProfile);
+    const username = authorProfile?.username ?? null;
     const authorName = authorProfile?.display_name ?? null;
     const referralCode = authorProfile?.referral_code ?? row.author_id;
 
     return {
       audioUrl: row.audio_url,
-      author: authorName ?? "Creator",
+      author: username ?? authorName ?? "Creator",
       authorBadges: badgesByProfile.get(row.author_id) ?? [],
       authorId: row.author_id,
-      avatar: initialsFor(authorName, referralCode),
+      avatar: initialsFor(authorName, username ?? referralCode),
       bookmarkedByViewer: bookmarkedIds.has(row.id),
       bookmarksCount: row.bookmarks_count,
       caption: row.caption,
       comments: commentsByPost.get(row.id) ?? [],
       commentsCount: row.comments_count,
-      handle: publicHandle(row.author_id, referralCode),
+      handle: publicHandle(row.author_id, username, referralCode),
       id: row.id,
       impressionsCount: row.impressions_count ?? 0,
       likedByViewer: likedIds.has(row.id),
@@ -333,7 +341,7 @@ export async function getFeedPosts() {
   const viewerId = await getViewerId();
   const { data, error } = await supabase
     .from("posts")
-    .select("id, author_id, type, caption, media_url, media_urls, audio_url, likes_count, impressions_count, bookmarks_count, comments_count, shares_count, video_watch_seconds_total, video_watch_sessions_count, profiles:author_id(display_name, referral_code)")
+    .select("id, author_id, type, caption, media_url, media_urls, audio_url, likes_count, impressions_count, bookmarks_count, comments_count, shares_count, video_watch_seconds_total, video_watch_sessions_count, profiles:author_id(display_name, referral_code, username)")
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(30);
@@ -354,7 +362,7 @@ export async function getPostById(postId: string) {
   const viewerId = await getViewerId();
   const { data, error } = await supabase
     .from("posts")
-    .select("id, author_id, type, caption, media_url, media_urls, audio_url, likes_count, impressions_count, bookmarks_count, comments_count, shares_count, video_watch_seconds_total, video_watch_sessions_count, profiles:author_id(display_name, referral_code)")
+    .select("id, author_id, type, caption, media_url, media_urls, audio_url, likes_count, impressions_count, bookmarks_count, comments_count, shares_count, video_watch_seconds_total, video_watch_sessions_count, profiles:author_id(display_name, referral_code, username)")
     .eq("id", postId)
     .eq("status", "published")
     .maybeSingle();
@@ -434,7 +442,7 @@ export async function getOwnProfileData() {
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
 
   const [profileResult, postsResult, bookmarksResult, badgesByProfile] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, referral_code, referral_count").eq("id", viewerId).maybeSingle(),
+    supabase.from("profiles").select("id, display_name, referral_code, referral_count, username").eq("id", viewerId).maybeSingle(),
     supabase
       .from("posts")
       .select("id, type, status, caption, media_url, media_urls, likes_count, impressions_count")
@@ -443,7 +451,7 @@ export async function getOwnProfileData() {
       .limit(60),
     supabase
       .from("post_bookmarks")
-      .select("posts:post_id(id, author_id, type, status, caption, media_url, media_urls, likes_count, impressions_count, profiles:author_id(display_name, referral_code))")
+      .select("posts:post_id(id, author_id, type, status, caption, media_url, media_urls, likes_count, impressions_count, profiles:author_id(display_name, referral_code, username))")
       .eq("profile_id", viewerId)
       .order("created_at", { ascending: false })
       .limit(60),
@@ -477,10 +485,11 @@ export async function getOwnProfileData() {
     profile: {
       displayName: profile.display_name,
       id: profile.id,
-      initials: initialsFor(profile.display_name, profile.referral_code),
+      initials: initialsFor(profile.display_name, profile.username ?? profile.referral_code),
       badges: badgesByProfile.get(profile.id) ?? [],
       referralCode: profile.referral_code,
       referralCount: profile.referral_count,
+      username: profile.username,
     },
     pendingPosts: ownPosts.filter((post) => post.status === "pending"),
     posts: ownPosts,
@@ -493,16 +502,24 @@ export async function getOwnProfileData() {
 export async function getPublicProfileData(identifier: string) {
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const normalized = identifier.trim();
-  const query = supabase.from("profiles").select("id, display_name, referral_code, referral_count");
+  const query = supabase.from("profiles").select("id, display_name, referral_code, referral_count, username");
   const profileResult = uuidPattern.test(normalized)
     ? await query.eq("id", normalized).maybeSingle()
-    : await query.eq("referral_code", normalized.toUpperCase()).maybeSingle();
+    : await query.eq("username", normalized.toLowerCase()).maybeSingle();
 
   if (profileResult.error) {
     throw new Error(profileResult.error.message);
   }
 
-  const profile = profileResult.data as ProfileRow | null;
+  let profile = profileResult.data as ProfileRow | null;
+  if (!profile && !uuidPattern.test(normalized)) {
+    const referralResult = await query.eq("referral_code", normalized.toUpperCase()).maybeSingle();
+    if (referralResult.error) {
+      throw new Error(referralResult.error.message);
+    }
+    profile = referralResult.data as ProfileRow | null;
+  }
+
   if (!profile) {
     return null;
   }
@@ -526,10 +543,11 @@ export async function getPublicProfileData(identifier: string) {
     profile: {
       displayName: profile.display_name,
       id: profile.id,
-      initials: initialsFor(profile.display_name, profile.referral_code),
+      initials: initialsFor(profile.display_name, profile.username ?? profile.referral_code),
       badges: badgesByProfile.get(profile.id) ?? [],
       referralCode: profile.referral_code,
       referralCount: profile.referral_count,
+      username: profile.username,
     },
     posts: (data ?? []).map(toProfilePost),
   };
