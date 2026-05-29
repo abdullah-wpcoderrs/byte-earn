@@ -97,6 +97,19 @@ Update the feed, single post detail page, and profile editing flow so captions, 
 - [ ] Enforce user can only update their own profile.
 - [ ] Show useful errors for invalid or unavailable usernames.
 
+### Admin and Global Settings
+
+- [x] Create Admin UI
+  - [x] `app/admin/tasks/page.tsx` (Task list)
+  - [x] `app/admin/tasks/create/page.tsx` (Task creation form)
+- [x] Add Global Toggle for Sponsored Tasks
+  - [x] Add `sponsored_tasks_enabled` to `platform_settings` table
+  - [x] Update TypeScript definitions and default settings in `lib/platform-settings.ts`
+  - [x] Add toggle switch to Admin settings UI in `app/admin/platform/page.tsx`
+  - [x] Parse and update `sponsored_tasks_enabled` in `app/admin/actions.ts`
+  - [x] Implement custom waiting state screen on `/tasks` page when toggle is off
+  - [x] Add Tasks pages link to desktop and mobile admin navigation sidebars
+
 ### Verification
 
 - [ ] Run diagnostics.

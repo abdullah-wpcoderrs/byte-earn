@@ -42,6 +42,8 @@ export const signupPaymentStatus = pgEnum("signup_payment_status", [
   "abandoned",
 ]);
 export const taskStatus = pgEnum("task_status", ["draft", "active", "paused", "archived"]);
+export const taskProvider = pgEnum("task_provider", ["monetag", "cpagrip", "internal"]);
+export const taskSessionStatus = pgEnum("task_session_status", ["pending", "completed", "rejected"]);
 export const referralAttributionStatus = pgEnum("referral_attribution_status", ["pending", "qualified", "rejected"]);
 
 export const profiles = pgTable("profiles", {
@@ -159,29 +161,36 @@ export const creditLedger = pgTable("credit_ledger", {
 
 export const sponsoredTasks = pgTable("sponsored_tasks", {
   id: uuid("id").defaultRandom().primaryKey(),
+  provider: taskProvider("provider").notNull().default("internal"),
   status: taskStatus("status").notNull().default("draft"),
   title: text("title").notNull(),
-  sponsorName: text("sponsor_name").notNull(),
-  videoUrl: text("video_url").notNull(),
-  thumbnailUrl: text("thumbnail_url"),
-  milestoneSeconds: integer("milestone_seconds").notNull(),
+  description: text("description"), // For caption/instructions
+  mediaUrl: text("media_url"), // Image or video for internal tasks
+  taskUrl: text("task_url"), // CPAGrip offer link, Monetag SmartLink, or external redirect link
   rewardCredits: integer("reward_credits").notNull(),
-  dailyCapSeconds: integer("daily_cap_seconds").notNull().default(1800),
+  limitPerUser: integer("limit_per_user").notNull().default(1), // Daily cap per user
+  globalCap: integer("global_cap"), // Max total completions (for budget)
+  completionsCount: integer("completions_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const taskProgress = pgTable("task_progress", {
-  id: uuid("id").defaultRandom().primaryKey(),
+export const taskSessions = pgTable("task_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(), // Sent as subid/tracking_token
   taskId: uuid("task_id").notNull().references(() => sponsoredTasks.id),
   profileId: uuid("profile_id").notNull().references(() => profiles.id),
-  watchedSeconds: integer("watched_seconds").notNull().default(0),
-  awardedCredits: integer("awarded_credits").notNull().default(0),
-  completedMilestones: integer("completed_milestones").notNull().default(0),
-  capExhausted: boolean("cap_exhausted").notNull().default(false),
-  progressDate: timestamp("progress_date", { withTimezone: true }).notNull().defaultNow(),
+  provider: taskProvider("provider").notNull(),
+  status: taskSessionStatus("status").notNull().default("pending"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  rewardCredits: integer("reward_credits").notNull().default(0),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("task_sessions_profile_provider_idx").on(table.profileId, table.provider),
+  index("task_sessions_created_at_idx").on(table.createdAt),
+]);
 
 export const rewardRules = pgTable("reward_rules", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -231,6 +240,7 @@ export const platformSettings = pgTable("platform_settings", {
   id: uuid("id").defaultRandom().primaryKey(),
   postApprovalRequired: boolean("post_approval_required").notNull().default(true),
   underConstruction: boolean("under_construction").notNull().default(false),
+  sponsoredTasksEnabled: boolean("sponsored_tasks_enabled").notNull().default(false),
   sponsoredWithdrawalsUnlocked: boolean("sponsored_withdrawals_unlocked").notNull().default(false),
   dailyWatchLimitSeconds: integer("daily_watch_limit_seconds").notNull().default(1800),
   maxUploadSizeMb: integer("max_upload_size_mb").notNull().default(50),

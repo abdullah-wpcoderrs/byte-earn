@@ -13,6 +13,7 @@ export type PlatformSettings = {
   leaderboard_uses_watch_time: boolean;
   max_upload_size_mb: number;
   post_approval_required: boolean;
+  sponsored_tasks_enabled: boolean;
   sponsored_withdrawals_unlocked: boolean;
   under_construction: boolean;
   updated_at: string;
@@ -28,6 +29,7 @@ export const defaultPlatformSettings: PlatformSettings = {
   leaderboard_uses_watch_time: false,
   max_upload_size_mb: 50,
   post_approval_required: true,
+  sponsored_tasks_enabled: false,
   sponsored_withdrawals_unlocked: false,
   under_construction: false,
   updated_at: new Date(0).toISOString(),

@@ -447,6 +447,7 @@ export async function updatePlatformSettingsAction(formData: FormData) {
     daily_watch_limit_seconds: Math.max(60, intValue(formData, "dailyWatchLimitSeconds")),
     max_upload_size_mb: Math.min(100, Math.max(1, intValue(formData, "maxUploadSizeMb"))),
     post_approval_required: formData.get("postApprovalRequired") === "on",
+    sponsored_tasks_enabled: formData.get("sponsoredTasksEnabled") === "on",
     sponsored_withdrawals_unlocked: formData.get("sponsoredWithdrawalsUnlocked") === "on",
     under_construction: formData.get("underConstruction") === "on",
     updated_at: new Date().toISOString(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Coins, FileClock, Gauge, LayoutDashboard, MailPlus, Menu, ShieldCheck, Trophy, UsersRound, WalletCards, X } from "lucide-react";
+import { BadgeCheck, Coins, FileClock, Gauge, LayoutDashboard, MailPlus, Menu, ShieldCheck, Trophy, UsersRound, WalletCards, X, ListTodo } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -15,6 +15,7 @@ const adminNav = [
   { href: "/admin/moderation", icon: ShieldCheck, label: "Moderation" },
   { href: "/admin/leaderboard", icon: Trophy, label: "Leaderboard" },
   { href: "/admin/rewards", icon: Coins, label: "Rewards" },
+  { href: "/admin/tasks", icon: ListTodo, label: "Tasks" },
   { href: "/admin/platform", icon: Gauge, label: "Platform" },
   { href: "/admin/email-blasts", icon: MailPlus, label: "Emails" },
   { href: "/admin/badges", icon: BadgeCheck, label: "Badges" },

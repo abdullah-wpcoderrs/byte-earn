@@ -54,6 +54,14 @@ export default async function AdminPlatformPage() {
       state: `${settings.max_upload_size_mb ?? 50} MB`,
     },
     {
+      detail: settings.sponsored_tasks_enabled
+        ? "Users can view and complete Monetag, CPAGrip, and internal tasks."
+        : "Users see a custom waiting screen; task sessions are blocked.",
+      label: "Sponsored tasks",
+      routes: ["/tasks", "/admin/tasks"],
+      state: settings.sponsored_tasks_enabled ? "Enabled" : "Disabled",
+    },
+    {
       detail: settings.sponsored_withdrawals_unlocked
         ? "Sponsored task credits are available for payout."
         : "Sponsored task credits remain locked outside fallback unlock rules.",
@@ -98,6 +106,7 @@ export default async function AdminPlatformPage() {
         <input name="settingsId" type="hidden" value={settings.id} />
         {[
           ["postApprovalRequired", "Require post approval", settings.post_approval_required],
+          ["sponsoredTasksEnabled", "Enable sponsored tasks feature", settings.sponsored_tasks_enabled],
           ["sponsoredWithdrawalsUnlocked", "Unlock sponsored withdrawals", settings.sponsored_withdrawals_unlocked],
           ["underConstruction", "Under-construction global switch", settings.under_construction],
         ].map(([name, label, checked]) => (

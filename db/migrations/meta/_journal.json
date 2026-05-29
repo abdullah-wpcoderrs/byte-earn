@@ -232,6 +232,20 @@
       "when": 1780045200000,
       "tag": "0032_post_counter_ambiguity_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1780048800000,
+      "tag": "0033_sponsored_tasks_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1780052400000,
+      "tag": "0034_sponsored_tasks_toggle",
+      "breakpoints": true
     }
   ]
 }

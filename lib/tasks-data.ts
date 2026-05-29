@@ -1,57 +1,75 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
-import { sponsoredTasks, type SponsoredTask } from "@/lib/tasks";
 
-type RewardRuleRow = {
-  action: string;
-  credits: number;
-  enabled: boolean;
-  max_credits_per_action: number | null;
+export type TaskProvider = "monetag" | "cpagrip" | "internal";
+
+export type SponsoredTask = {
+  id: string;
+  provider: TaskProvider;
+  title: string;
+  description: string | null;
+  mediaUrl: string | null;
+  taskUrl: string | null;
+  rewardCredits: number;
+  limitPerUser: number;
+  completionsCount: number;
 };
 
-function clampCredits(credits: number, maxCredits: number | null) {
-  if (maxCredits === null) return Math.max(0, credits);
-  return Math.min(Math.max(0, credits), maxCredits);
-}
+export type TaskProgress = {
+  taskId: string;
+  completedToday: number;
+};
 
-async function getTaskRewardRules() {
+export async function getActiveTasks() {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("reward_rules")
-    .select("action, credits, enabled, max_credits_per_action")
-    .in("action", ["sponsored_task_milestone", "watch_time_milestone"]);
+    .from("sponsored_tasks")
+    .select("*")
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
 
   if (error) {
-    if (error.message.includes("reward_rules")) {
-      return new Map<string, RewardRuleRow>();
-    }
-    throw new Error(error.message);
+    console.error("Error fetching tasks:", error);
+    return [];
   }
 
-  return new Map((data ?? []).map((rule) => [rule.action, rule as RewardRuleRow]));
+  return data.map((t) => ({
+    id: t.id,
+    provider: t.provider as TaskProvider,
+    title: t.title,
+    description: t.description,
+    mediaUrl: t.media_url,
+    taskUrl: t.task_url,
+    rewardCredits: t.reward_credits,
+    limitPerUser: t.limit_per_user,
+    completionsCount: t.completions_count,
+  })) as SponsoredTask[];
 }
 
-export async function getConfiguredSponsoredTasks(dailyCapSeconds: number): Promise<SponsoredTask[]> {
-  const rules = await getTaskRewardRules();
-  const sponsoredRule = rules.get("sponsored_task_milestone");
-  const watchTimeRule = rules.get("watch_time_milestone");
-  const sponsoredCredits =
-    sponsoredRule?.enabled && sponsoredRule.credits > 0
-      ? clampCredits(sponsoredRule.credits, sponsoredRule.max_credits_per_action)
-      : null;
-  const watchTimeBonusCredits =
-    watchTimeRule?.enabled && watchTimeRule.credits > 0
-      ? clampCredits(watchTimeRule.credits, watchTimeRule.max_credits_per_action)
-      : 0;
+export async function getUserTaskProgress(profileId: string) {
+  const supabase = await createClient();
+  
+  // Get today's start at midnight
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  return sponsoredTasks.map((task) => ({
-    ...task,
-    dailyCapSeconds,
-    milestones: task.milestones.map((milestone) => ({
-      ...milestone,
-      credits: sponsoredCredits ?? milestone.credits,
-    })),
-    watchTimeBonusCredits,
-  }));
+  const { data, error } = await supabase
+    .from("task_sessions")
+    .select("task_id")
+    .eq("profile_id", profileId)
+    .eq("status", "completed")
+    .gte("completed_at", today.toISOString());
+
+  if (error) {
+    console.error("Error fetching task progress:", error);
+    return new Map<string, number>();
+  }
+
+  const progress = new Map<string, number>();
+  for (const session of data) {
+    progress.set(session.task_id, (progress.get(session.task_id) || 0) + 1);
+  }
+
+  return progress;
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BadgeCheck, Coins, FileClock, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { BadgeCheck, Coins, FileClock, Gauge, LayoutDashboard, MailPlus, ShieldCheck, Trophy, UsersRound, WalletCards, ListTodo } from "lucide-react";
 import { AdminMobileNav } from "@/components/admin/admin-mobile-nav";
 import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -13,6 +13,7 @@ const adminNav = [
   { href: "/admin/moderation", icon: ShieldCheck, label: "Moderation" },
   { href: "/admin/leaderboard", icon: Trophy, label: "Leaderboard" },
   { href: "/admin/rewards", icon: Coins, label: "Rewards" },
+  { href: "/admin/tasks", icon: ListTodo, label: "Tasks" },
   { href: "/admin/platform", icon: Gauge, label: "Platform" },
   { href: "/admin/email-blasts", icon: MailPlus, label: "Emails" },
   { href: "/admin/badges", icon: BadgeCheck, label: "Badges" },
