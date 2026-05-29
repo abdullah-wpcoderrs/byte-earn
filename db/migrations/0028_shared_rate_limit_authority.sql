@@ -14,9 +14,9 @@ alter table public.rate_limit_buckets enable row level security;
 revoke all on public.rate_limit_buckets from anon, authenticated;
 
 create or replace function private.consume_rate_limit(
-  bucket_key text,
-  max_attempts integer,
-  window_ms integer
+  p_bucket_key text,
+  p_max_attempts integer,
+  p_window_ms integer
 )
 returns table (
   allowed boolean,
@@ -32,19 +32,19 @@ declare
   stored_attempts integer;
   stored_reset_at timestamp with time zone;
 begin
-  if bucket_key is null or length(trim(bucket_key)) = 0 then
+  if p_bucket_key is null or length(trim(p_bucket_key)) = 0 then
     raise exception 'rate_limit_key_required';
   end if;
 
-  if max_attempts < 1 then
+  if p_max_attempts < 1 then
     raise exception 'rate_limit_max_attempts_invalid';
   end if;
 
-  if window_ms < 1 then
+  if p_window_ms < 1 then
     raise exception 'rate_limit_window_invalid';
   end if;
 
-  next_reset_at := now() + make_interval(secs => window_ms / 1000.0);
+  next_reset_at := now() + make_interval(secs => p_window_ms / 1000.0);
 
   insert into public.rate_limit_buckets as bucket (
     bucket_key,
@@ -54,7 +54,7 @@ begin
     updated_at
   )
   values (
-    bucket_key,
+    p_bucket_key,
     1,
     now(),
     next_reset_at,
@@ -63,7 +63,7 @@ begin
   on conflict (bucket_key) do update
     set attempts = case
         when bucket.reset_at <= now() then 1
-        when bucket.attempts < max_attempts then bucket.attempts + 1
+        when bucket.attempts < p_max_attempts then bucket.attempts + 1
         else bucket.attempts
       end,
       window_started_at = case
@@ -80,8 +80,8 @@ begin
 
   return query
   select
-    stored_attempts <= max_attempts,
-    greatest(max_attempts - stored_attempts, 0),
+    stored_attempts <= p_max_attempts,
+    greatest(p_max_attempts - stored_attempts, 0),
     stored_reset_at;
 end;
 $$;

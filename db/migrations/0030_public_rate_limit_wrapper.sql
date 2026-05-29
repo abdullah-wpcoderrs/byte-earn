@@ -14,9 +14,9 @@ set search_path = public, private
 as $$
   select *
   from private.consume_rate_limit(
-    bucket_key => consume_rate_limit.bucket_key,
-    max_attempts => consume_rate_limit.max_attempts,
-    window_ms => consume_rate_limit.window_ms
+    p_bucket_key => consume_rate_limit.bucket_key,
+    p_max_attempts => consume_rate_limit.max_attempts,
+    p_window_ms => consume_rate_limit.window_ms
   );
 $$;
 

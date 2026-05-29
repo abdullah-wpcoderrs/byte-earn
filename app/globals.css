@@ -121,6 +121,10 @@ button {
   animation: vinyl-spin 3s linear infinite;
 }
 
+.vinyl-spin.paused {
+  animation-play-state: paused;
+}
+
 .pulse-credit {
   animation: pulse-credit 2.4s ease-in-out infinite;
 }

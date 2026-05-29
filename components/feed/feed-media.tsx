@@ -11,9 +11,10 @@ type FeedMediaProps = {
   mediaUrls: string[];
   postId: string;
   type: "image_audio" | "image_text" | "video_text";
+  isIntersecting: boolean;
 };
 
-export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postId, type }: FeedMediaProps) {
+export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postId, type, isIntersecting }: FeedMediaProps) {
   const urls = mediaUrls.length > 0 ? mediaUrls : [mediaUrl];
   const [activeIndex, setActiveIndex] = useState(0);
   const [hasFocusWithin, setHasFocusWithin] = useState(false);
@@ -38,15 +39,13 @@ export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postI
       return;
     }
 
-    const playVideo = async () => {
-      try {
-        await video.play();
-      } catch {
-      }
-    };
-
-    playVideo();
-  }, [activeUrl, type]);
+    if (isIntersecting) {
+      video.currentTime = 0; // Restart from the beginning when scrolled back in focus
+      video.play().catch(() => undefined);
+    } else {
+      video.pause();
+    }
+  }, [isIntersecting, activeUrl, type]);
 
   useEffect(() => {
     if (type !== "image_audio") {
@@ -60,20 +59,13 @@ export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postI
 
     audio.muted = isMuted;
 
-    const playAudio = async () => {
-      try {
-        await audio.play();
-      } catch {
-      }
-    };
-
-    playAudio();
-
-    return () => {
+    if (isIntersecting) {
+      audio.currentTime = 0; // Restart from the beginning when scrolled back in focus
+      audio.play().catch(() => undefined);
+    } else {
       audio.pause();
-      audio.currentTime = 0;
-    };
-  }, [audioUrl, isMuted, type]);
+    }
+  }, [audioUrl, isMuted, type, isIntersecting]);
 
   function syncVideoMute(nextMuted: boolean) {
     const video = videoRef.current;
