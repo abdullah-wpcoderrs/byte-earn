@@ -2,6 +2,7 @@ import "server-only";
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
+import { getTrustedClientIp } from "@/lib/request-metadata";
 
 type RateLimitEntry = {
   count: number;
@@ -87,8 +88,7 @@ function shouldUseTransientLocalFallback(error: unknown) {
 }
 
 export function getClientIp(headers: Headers) {
-  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || headers.get("x-real-ip") || "127.0.0.1";
+  return getTrustedClientIp(headers) ?? "127.0.0.1";
 }
 
 export async function checkRateLimit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {

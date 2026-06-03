@@ -17,7 +17,7 @@ export async function getCurrentUserNotifications() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { notifications: [], unreadCount: 0 };
+    return { notifications: [], profileId: null, unreadCount: 0 };
   }
 
   const { data: profile } = await supabase.from("profiles").select("status").eq("id", user.id).maybeSingle();
@@ -28,6 +28,7 @@ export async function getCurrentUserNotifications() {
   const audienceQuery = supabase
     .from("platform_notifications")
     .select("id, title, body, audience, created_at")
+    .is("archived_at", null)
     .is("recipient_profile_id", null)
     .or(audienceFilter)
     .order("created_at", { ascending: false })
@@ -36,6 +37,7 @@ export async function getCurrentUserNotifications() {
   const targetedQuery = supabase
     .from("platform_notifications")
     .select("id, title, body, audience, created_at")
+    .is("archived_at", null)
     .eq("recipient_profile_id", user.id)
     .order("created_at", { ascending: false })
     .limit(20);
@@ -43,7 +45,7 @@ export async function getCurrentUserNotifications() {
   const [audienceResult, targetedResult] = await Promise.all([audienceQuery, targetedQuery]);
 
   if (audienceResult.error || targetedResult.error) {
-    return { notifications: [], unreadCount: 0 };
+    return { notifications: [], profileId: user.id, unreadCount: 0 };
   }
 
   const notificationsById = new Map(
@@ -68,6 +70,7 @@ export async function getCurrentUserNotifications() {
 
   return {
     notifications: items,
+    profileId: user.id,
     unreadCount: items.filter((item) => !item.read).length,
   };
 }

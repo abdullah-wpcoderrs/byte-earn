@@ -182,6 +182,8 @@ export function FeedMedia({ audioUrl = null, caption, mediaUrl, mediaUrls, postI
       onFocus={() => setHasFocusWithin(true)}
     >
       <a aria-label={`Open post: ${caption}`} className="absolute inset-0 block" href={`/posts/${postId}`}>
+        {/* Native image keeps carousel and remote media rendering simple here. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img alt={caption} className="size-full object-cover" src={activeUrl} />
       </a>
       {type === "image_audio" && audioUrl ? <audio autoPlay loop muted={isMuted} preload="metadata" ref={audioRef} src={audioUrl} /> : null}

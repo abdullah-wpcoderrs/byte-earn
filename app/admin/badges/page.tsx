@@ -1,5 +1,7 @@
 import { BadgeCheck } from "lucide-react";
 import { CreateBadgeModal } from "./create-badge-modal";
+import { DeleteBadgeButton } from "./delete-badge-button";
+import { EditBadgeModal } from "./edit-badge-modal";
 import { getAdminBadges } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +43,15 @@ export default async function AdminBadgesPage() {
                 {badge.color}
               </span>
               <time className="text-slate-500">{badge.createdAt.toLocaleDateString("en-NG")}</time>
+            </div>
+            <div className="rounded-[5px] border border-white/10 bg-white/[0.035] px-3 py-2 text-sm text-slate-300">
+              {badge.assignedCount > 0
+                ? `${badge.assignedCount} user${badge.assignedCount === 1 ? "" : "s"} currently have this badge. Remove assignments before deleting it.`
+                : "This badge is not assigned to any user yet."}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <EditBadgeModal badge={badge} />
+              <DeleteBadgeButton assignedCount={badge.assignedCount} badgeId={badge.id} badgeName={badge.name} />
             </div>
           </article>
         ))}

@@ -9,22 +9,30 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Button } from "@/components/ui/button";
 import { createSponsoredTask, updateSponsoredTask } from "@/app/admin/tasks/actions";
 
+type EditableProvider = "internal" | "adsterra" | "cpagrip";
+
 type TaskFormModalProps = {
   task?: {
     id: string;
     title: string;
-    provider: "internal" | "monetag" | "cpagrip";
+    provider: "internal" | "monetag" | "adsterra" | "cpagrip";
     description?: string | null;
     task_url?: string | null;
     media_url?: string | null;
+    provider_placement_id?: string | null;
+    provider_domain_id?: string | null;
+    provider_tracking_param?: string | null;
+    task_type?: string | null;
     reward_credits: number;
     limit_per_user: number;
+    global_cap?: number | null;
   };
 };
 
 export function CreateTaskModal({ task }: TaskFormModalProps) {
   const [open, setOpen] = useState(false);
-  const [provider, setProvider] = useState<"internal" | "monetag" | "cpagrip">(task?.provider ?? "internal");
+  const initialProvider = task?.provider === "monetag" ? "adsterra" : (task?.provider ?? "internal");
+  const [provider, setProvider] = useState<EditableProvider>(initialProvider);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(task?.media_url ?? null);
 
@@ -33,7 +41,7 @@ export function CreateTaskModal({ task }: TaskFormModalProps) {
     setPreviewUrl(task?.media_url ?? null);
     setSelectedFile(null);
     if (task) {
-      setProvider(task.provider);
+      setProvider(task.provider === "monetag" ? "adsterra" : task.provider);
     }
   };
 
@@ -108,10 +116,10 @@ export function CreateTaskModal({ task }: TaskFormModalProps) {
             label="Provider Network"
             required
             value={provider}
-            onChange={(e) => setProvider(e.target.value as any)}
+            onChange={(e) => setProvider(e.target.value as EditableProvider)}
           >
             <option value="internal">Internal Platform Sponsored Ad</option>
-            <option value="monetag">Monetag SmartLink Task</option>
+            <option value="adsterra">Adsterra SmartLink Task</option>
             <option value="cpagrip">CPAGrip Offer Task</option>
           </Select>
 
@@ -121,8 +129,8 @@ export function CreateTaskModal({ task }: TaskFormModalProps) {
             required
             defaultValue={task?.title}
             placeholder={
-              provider === "monetag"
-                ? "e.g. Monetag Premium SmartLink"
+              provider === "adsterra"
+                ? "e.g. Adsterra SmartLink reward"
                 : provider === "cpagrip"
                 ? "e.g. Complete survey to unlock rewards"
                 : "e.g. Share Branded Post to Twitter"
@@ -130,7 +138,7 @@ export function CreateTaskModal({ task }: TaskFormModalProps) {
           />
 
           {/* Conditional Description for CPAGrip and Internal Tasks */}
-          {provider !== "monetag" && (
+          {provider !== "adsterra" && (
             <TextInput
               name="description"
               label={provider === "internal" ? "Shareable Caption (required)" : "Description / Instructions (required)"}
@@ -144,7 +152,7 @@ export function CreateTaskModal({ task }: TaskFormModalProps) {
             />
           )}
 
-          {/* Conditional Task URL for Monetag and CPAGrip Tasks */}
+          {/* Conditional Task URL for Adsterra and CPAGrip Tasks */}
           {provider !== "internal" && (
             <TextInput
               name="task_url"
@@ -154,6 +162,48 @@ export function CreateTaskModal({ task }: TaskFormModalProps) {
               placeholder="https://..."
               type="url"
             />
+          )}
+
+          {provider === "adsterra" && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextInput
+                name="provider_placement_id"
+                label="Adsterra Placement ID"
+                defaultValue={task?.provider_placement_id ?? ""}
+                placeholder="Placement ID"
+              />
+              <TextInput
+                name="provider_domain_id"
+                label="Adsterra Domain ID"
+                defaultValue={task?.provider_domain_id ?? ""}
+                placeholder="Domain ID"
+              />
+              <input type="hidden" name="provider_tracking_param" value="psid" />
+              <input type="hidden" name="provider_reconciliation_mode" value="api_reconciliation" />
+              <input type="hidden" name="provider_status" value="needs_api_reconciliation" />
+            </div>
+          )}
+
+          {provider === "cpagrip" && (
+            <>
+              <TextInput
+                name="provider_tracking_param"
+                label="Tracking Parameter"
+                defaultValue={task?.provider_tracking_param ?? "subid"}
+                placeholder="subid"
+              />
+              <input type="hidden" name="provider_reconciliation_mode" value="postback" />
+              <input type="hidden" name="provider_status" value="postback_required" />
+            </>
+          )}
+
+          {provider === "internal" && (
+            <Select name="task_type" label="Internal Task Type" defaultValue={task?.task_type ?? "manual_review"} required>
+              <option value="manual_review">Manual review</option>
+              <option value="share_link">Share tracked link</option>
+              <option value="visit_url">Visit campaign page</option>
+              <option value="watch_media">Watch sponsored media</option>
+            </Select>
           )}
 
           {/* Conditional Media Upload & URL for Internal Preview (Images/Videos) */}
@@ -173,6 +223,8 @@ export function CreateTaskModal({ task }: TaskFormModalProps) {
                       className="max-h-44 max-w-full rounded object-contain"
                     />
                   ) : (
+                    // Native image keeps local upload preview blob URLs working.
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={previewUrl}
                       alt="Media preview"
@@ -250,10 +302,19 @@ export function CreateTaskModal({ task }: TaskFormModalProps) {
               required
               type="number"
               min={1}
-              defaultValue={task?.limit_per_user ?? (provider === "monetag" ? 10 : 1)}
+              defaultValue={task?.limit_per_user ?? (provider === "adsterra" ? 10 : 1)}
               placeholder="1"
             />
           </div>
+
+          <TextInput
+            name="global_cap"
+            label="Global Campaign Cap"
+            type="number"
+            min={1}
+            defaultValue={task?.global_cap ?? ""}
+            placeholder="Optional"
+          />
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="ghost" onClick={handleClose}>

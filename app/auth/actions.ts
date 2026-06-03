@@ -24,6 +24,19 @@ function normalizeUsername(value: string) {
   return value.trim().toLowerCase();
 }
 
+function localRedirectTarget(formData: FormData, key: string, fallback: string) {
+  const value = formData.get(key);
+  return typeof value === "string" && value.startsWith("/") ? value : fallback;
+}
+
+function withQuery(pathname: string, key: string, value: string) {
+  const [path, query = ""] = pathname.split("?");
+  const params = new URLSearchParams(query);
+  params.set(key, value);
+  const search = params.toString();
+  return search ? `${path}?${search}` : path;
+}
+
 export async function signUpAction(formData: FormData) {
   const displayName = readRequiredString(formData, "displayName");
   const username = normalizeUsername(readRequiredString(formData, "username"));
@@ -116,6 +129,7 @@ export async function signUpAction(formData: FormData) {
 export async function signInAction(formData: FormData) {
   const email = readRequiredString(formData, "email");
   const password = readRequiredString(formData, "password");
+  const errorRedirectTo = localRedirectTarget(formData, "errorRedirectTo", "/");
   const requestHeaders = await headers();
   const clientIp = getClientIp(requestHeaders);
   await assertRateLimit(`auth:signin:${clientIp}:${email.toLowerCase()}`, 8, 10 * 60 * 1000);
@@ -126,7 +140,7 @@ export async function signInAction(formData: FormData) {
   });
 
   if (error || !data.user) {
-    redirect(`/?auth_error=${encodeURIComponent(error?.message ?? "Unable to sign in.")}`);
+    redirect(withQuery(errorRedirectTo, "auth_error", error?.message ?? "Unable to sign in."));
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -140,7 +154,7 @@ export async function signInAction(formData: FormData) {
   }
 
   if (profile.status === "suspended") {
-    redirect(`/?auth_error=${encodeURIComponent("Account suspended.")}`);
+    redirect(withQuery(errorRedirectTo, "auth_error", "Account suspended."));
   }
 
   if (profile.role === "admin") {

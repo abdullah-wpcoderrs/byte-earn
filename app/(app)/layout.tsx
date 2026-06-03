@@ -15,7 +15,12 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   const notificationData = await getCurrentUserNotifications();
 
   return (
-    <AppShell isAdmin={profile?.role === "admin"} notifications={notificationData.notifications} unreadCount={notificationData.unreadCount}>
+    <AppShell
+      isAdmin={profile?.role === "admin"}
+      notifications={notificationData.notifications}
+      profileId={notificationData.profileId ?? undefined}
+      unreadCount={notificationData.unreadCount}
+    >
       {children}
     </AppShell>
   );

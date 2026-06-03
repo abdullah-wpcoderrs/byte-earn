@@ -25,6 +25,7 @@ const adminNav = [
 type AdminMobileNavProps = {
   adminLabel: string;
   notifications: NotificationItem[];
+  profileId?: string;
   unreadCount: number;
 };
 
@@ -32,7 +33,7 @@ function isActive(pathname: string, href: string) {
   return pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`));
 }
 
-export function AdminMobileNav({ adminLabel, notifications, unreadCount }: AdminMobileNavProps) {
+export function AdminMobileNav({ adminLabel, notifications, profileId, unreadCount }: AdminMobileNavProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -115,7 +116,7 @@ export function AdminMobileNav({ adminLabel, notifications, unreadCount }: Admin
               <Link className="flex min-h-10 flex-1 items-center justify-center rounded-[5px] border border-white/10 bg-white/[0.055] px-3 font-semibold text-cyan-100" href="/feed" prefetch={false}>
                 Return to app
               </Link>
-              <NotificationBell notifications={notifications} panelPlacement="mobile-header" unreadCount={unreadCount} />
+              <NotificationBell notifications={notifications} panelPlacement="mobile-header" profileId={profileId} unreadCount={unreadCount} />
             </div>
           </aside>
         </div>

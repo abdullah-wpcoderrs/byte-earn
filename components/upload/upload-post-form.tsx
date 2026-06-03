@@ -111,6 +111,8 @@ export function UploadPostForm({ returnTo = "upload" }: UploadPostFormProps) {
                 {preview.type.startsWith("video/") ? (
                   <video className="size-full object-cover" muted playsInline preload="metadata" src={preview.url} />
                 ) : (
+                  // Native image keeps local upload preview blob URLs working.
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img alt={preview.name} className="size-full object-cover" src={preview.url} />
                 )}
                 <span className="absolute left-1.5 top-1.5 rounded-[5px] bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur">

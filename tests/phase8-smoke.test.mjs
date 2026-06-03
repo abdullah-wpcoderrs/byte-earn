@@ -88,15 +88,198 @@ test("finance settings drive server-side credit conversion", () => {
   assert.match(adminActions, /admin_adjustment/);
 });
 
-test("task rewards are loaded from configured reward rules", () => {
+test("sponsored task page loads provider tasks and pending session state", () => {
   const tasksPage = read("app/(app)/tasks/page.tsx");
   const tasksData = read("lib/tasks-data.ts");
-  const taskPlayer = read("components/tasks/sponsored-task-player.tsx");
+  const taskEngine = read("components/tasks/task-engine.tsx");
+  const taskDetail = read("app/(app)/tasks/[id]/page.tsx");
 
-  assert.match(tasksPage, /getConfiguredSponsoredTasks/);
-  assert.match(tasksData, /sponsored_task_milestone/);
-  assert.match(tasksData, /watch_time_milestone/);
-  assert.match(taskPlayer, /watchTimeBonusCredits/);
+  assert.match(tasksPage, /getActiveTasks/);
+  assert.match(tasksPage, /getUserTaskSessionSummary/);
+  assert.match(tasksData, /getUserTaskSessionSummary/);
+  assert.match(tasksData, /latestPendingSessionId/);
+  assert.match(taskEngine, /Pending verification/);
+  assert.match(taskEngine, /router\.refresh/);
+  assert.match(taskEngine, /href=\{`\/tasks\/\$\{task\.id\}`\}/);
+  assert.match(taskDetail, /Instructions/);
+  assert.match(taskDetail, /getUserTaskSessionSummary/);
+});
+
+test("Adsterra SmartLink uses psid reconciliation before rewarding", () => {
+  const actions = read("app/(app)/tasks/actions.ts");
+  const reconcile = read("app/api/tasks/reconcile/adsterra/route.ts");
+  const migration = read("db/migrations/0037_adsterra_cpagrip_runtime_contract.sql");
+
+  assert.match(actions, /provider === "adsterra"\) return "psid"/);
+  assert.match(actions, /urlObj\.searchParams\.set\(trackingParamForProvider\(task\.provider/);
+  assert.match(reconcile, /placement_sub_id/);
+  assert.match(reconcile, /complete_sponsored_task_session/);
+  assert.match(reconcile, /evaluateProviderSessionRisk/);
+  assert.match(migration, /provider_tracking_param" = 'psid'/);
+});
+
+test("CPAGrip postbacks are idempotent and risk checked", () => {
+  const postback = read("app/api/postback/cpagrip/route.ts");
+  const adminTaskActions = read("app/admin/tasks/actions.ts");
+
+  assert.match(postback, /provider_event_id/);
+  assert.match(postback, /duplicate/);
+  assert.match(postback, /CPAGRIP_POSTBACK_SECRET/);
+  assert.match(postback, /evaluateProviderSessionRisk/);
+  assert.match(postback, /complete_sponsored_task_session/);
+  assert.match(postback, /provider_campaign_mismatch/);
+  assert.match(postback, /missing_provider_event_id/);
+  assert.match(postback, /sessionRow\.provider !== "cpagrip"/);
+  assert.match(postback, /provider_placement_id/);
+  assert.match(postback, /recordProviderEvent\("rejected"\)/);
+  assert.match(postback, /complete_sponsored_task_session/);
+  assert.match(adminTaskActions, /CPAGrip tasks require an offer or campaign ID/);
+});
+
+test("sponsored reward RPC is atomic and cap guarded", () => {
+  const migration = read("db/migrations/0036_sponsored_task_provider_contract.sql");
+  const lockdown = read("db/migrations/0039_sponsored_task_reward_authority_lockdown.sql");
+  const reviewMetadata = read("db/migrations/0041_task_session_fraud_review_metadata.sql");
+
+  assert.match(migration, /FOR UPDATE/);
+  assert.match(migration, /task_global_cap_reached/);
+  assert.match(migration, /task_daily_cap_reached/);
+  assert.match(migration, /credit_ledger/);
+  assert.match(migration, /credits_balance/);
+  assert.match(migration, /completions_count/);
+  assert.match(lockdown, /REVOKE EXECUTE ON FUNCTION "public"\."complete_sponsored_task_session".*FROM authenticated/s);
+  assert.match(lockdown, /DROP POLICY IF EXISTS "task_sessions_insert_own"/);
+  assert.match(lockdown, /DROP POLICY IF EXISTS "task_sessions_update_own"/);
+  assert.match(reviewMetadata, /ADD COLUMN IF NOT EXISTS "fraud_reason"/);
+  assert.match(reviewMetadata, /ADD COLUMN IF NOT EXISTS "fraud_metadata"/);
+});
+
+test("task starts are gated by status, platform toggle, rate limits, and fraud limits", () => {
+  const actions = read("app/(app)/tasks/actions.ts");
+  const fraud = read("lib/task-fraud.ts");
+  const requestMetadata = read("lib/request-metadata.ts");
+  const geoMigration = read("db/migrations/0040_provider_geo_fraud_contract.sql");
+
+  assert.match(actions, /\.eq\("status", "active"\)/);
+  assert.match(actions, /sponsored_tasks_enabled/);
+  assert.match(actions, /assertRateLimit/);
+  assert.match(actions, /New accounts have a temporary sponsored task limit/);
+  assert.match(actions, /country_code: countryCode/);
+  assert.match(fraud, /same_ip_velocity/);
+  assert.match(fraud, /provider_country_mismatch/);
+  assert.match(fraud, /provider_ip_block_mismatch/);
+  assert.match(fraud, /fraud_reason: reason/);
+  assert.match(fraud, /fraud_metadata: metadata/);
+  assert.match(fraud, /status: "suspicious"/);
+  assert.match(requestMetadata, /cf-connecting-ip/);
+  assert.match(requestMetadata, /x-vercel-ip-country/);
+  assert.match(geoMigration, /ADD COLUMN IF NOT EXISTS "country_code"/);
+});
+
+test("internal watch and visit completions require trusted pending sessions", () => {
+  const actions = read("app/(app)/tasks/actions.ts");
+  const taskEngine = read("components/tasks/task-engine.tsx");
+  const watchLimit = read("lib/watch-reward-limit.ts");
+
+  assert.match(actions, /completeInternalWatchTask\(sessionId: string\)/);
+  assert.match(actions, /elapsedMs < 30_000/);
+  assert.match(actions, /pending_expires_at/);
+  assert.match(actions, /Watch session not found/);
+  assert.match(actions, /Invalid watch task session/);
+  assert.match(actions, /This watch session has expired/);
+  assert.match(actions, /today's watch reward limit/);
+  assert.match(actions, /getRewardedWatchSecondsToday/);
+  assert.match(actions, /Visit session not found/);
+  assert.match(actions, /Invalid visit task session/);
+  assert.match(actions, /This visit session has expired/);
+  assert.doesNotMatch(actions, /watchedSeconds: number/);
+  assert.match(taskEngine, /setWatchSessionId\(sessionId\)/);
+  assert.match(taskEngine, /completeInternalWatchTask\(watchSessionId\)/);
+  assert.match(watchLimit, /sponsored_tasks\(task_type\)/);
+  assert.match(watchLimit, /watch_media/);
+});
+
+test("platform tools expose readiness checks and queued email delivery", () => {
+  const platform = read("app/admin/platform/page.tsx");
+  const admin = read("lib/admin.ts");
+  const emailActions = read("app/admin/actions.ts");
+  const emailRoute = read("app/api/admin/email-blasts/process/route.ts");
+  const emailPage = read("app/admin/email-blasts/page.tsx");
+  const emailSendForm = read("app/admin/email-blasts/email-blast-send-form.tsx");
+  const emailTestModal = read("app/admin/email-blasts/email-blast-test-send-modal.tsx");
+  const editor = read("components/admin/rich-text-email-editor.tsx");
+  const migration = read("db/migrations/0042_platform_phase123_readiness_and_email_queue.sql");
+
+  assert.match(platform, /Platform readiness/);
+  assert.match(platform, /PlatformComposerTools/);
+  assert.match(admin, /getPlatformReadiness/);
+  assert.match(admin, /badge-images/);
+  assert.match(emailActions, /admin\.email_blast\.queued/);
+  assert.match(emailActions, /sendPreviewEmailBlastAction/);
+  assert.match(emailActions, /sendTestEmailBlastAction/);
+  assert.match(emailActions, /admin\.email_blast\.preview_sent/);
+  assert.match(emailActions, /admin\.email_blast\.test_sent/);
+  assert.match(emailActions, /recipient_snapshot/);
+  assert.match(emailRoute, /EMAIL_BLAST_BATCH_SIZE/);
+  assert.match(emailRoute, /admin\.email_blast\.sent/);
+  assert.match(emailRoute, /admin\.email_blast\.failed/);
+  assert.match(emailPage, /EmailBlastComposerModal/);
+  assert.match(emailPage, /Preview to me/);
+  assert.match(emailSendForm, /\/api\/admin\/email-blasts\/process/);
+  assert.match(emailTestModal, /Send test email/);
+  assert.match(editor, /HTML source/);
+  assert.match(editor, /Email preview/);
+  assert.match(migration, /recipient_snapshot/);
+  assert.match(migration, /failed_recipient_snapshot/);
+});
+
+test("badge admin flow supports editing, safe deletion, and live notification refresh", () => {
+  const badgePage = read("app/admin/badges/page.tsx");
+  const badgeEditModal = read("app/admin/badges/edit-badge-modal.tsx");
+  const badgeDeleteButton = read("app/admin/badges/delete-badge-button.tsx");
+  const adminActions = read("app/admin/actions.ts");
+  const admin = read("lib/admin.ts");
+  const platformPage = read("app/admin/platform/page.tsx");
+  const notificationComposer = read("components/admin/notification-composer-modal.tsx");
+  const notificationActions = read("app/admin/platform/notification-history-actions.tsx");
+  const notifications = read("lib/notifications.ts");
+  const bell = read("components/notifications/notification-bell.tsx");
+  const adminLayout = read("app/admin/layout.tsx");
+  const appLayout = read("app/(app)/layout.tsx");
+
+  assert.match(badgePage, /assignedCount/);
+  assert.match(badgeEditModal, /updateBadgeAction/);
+  assert.match(badgeDeleteButton, /deleteBadgeAction/);
+  assert.match(adminActions, /admin\.badge\.updated/);
+  assert.match(adminActions, /admin\.badge\.deleted/);
+  assert.match(adminActions, /deliveryMode/);
+  assert.match(adminActions, /recipient_profile_id/);
+  assert.match(adminActions, /badge_in_use/);
+  assert.match(admin, /assignedCount:/);
+  assert.match(admin, /getAdminNotificationRecipients/);
+  assert.match(platformPage, /Recipient:/);
+  assert.match(notificationComposer, /Single user/);
+  assert.match(notificationComposer, /recipientProfileId/);
+  assert.match(notificationActions, /window\.confirm/);
+  assert.match(notifications, /profileId: user\.id/);
+  assert.match(bell, /\.channel\(`notifications:\$\{profileId\}`\)/);
+  assert.match(bell, /platform_notifications/);
+  assert.match(bell, /notification_reads/);
+  assert.match(adminLayout, /profileId=\{notificationData\.profileId/);
+  assert.match(appLayout, /profileId=\{notificationData\.profileId/);
+});
+
+test("admin queue and task UI expose aligned review states", () => {
+  const adminTasks = read("app/admin/tasks/page.tsx");
+  const taskEngine = read("components/tasks/task-engine.tsx");
+  const checklist = read("docs/sponsored-task-security-fix-checklist.md");
+
+  assert.match(adminTasks, /fraud_reason/);
+  assert.match(adminTasks, /formatReviewReason/);
+  assert.match(adminTasks, /country_code/);
+  assert.match(taskEngine, /Under review/);
+  assert.match(taskEngine, /Pending verification/);
+  assert.match(checklist, /Phase 9: Admin Review and UX Alignment/);
 });
 
 test("admins bypass payment and onboarding gates", () => {
@@ -112,6 +295,29 @@ test("admins bypass payment and onboarding gates", () => {
   assert.match(activatePage, /profile\.role === "admin"/);
   assert.match(onboardingPage, /profile\.role === "admin"/);
   assert.match(paystackInitialize, /profile\.role === "admin"/);
+});
+
+test("under-construction mode serves a middleware maintenance page while keeping admin access separate", () => {
+  const middleware = read("lib/supabase/middleware.ts");
+  const authActions = read("app/auth/actions.ts");
+  const maintenance = read("lib/under-construction-response.ts");
+  const adminLogin = read("app/admin-login/page.tsx");
+  const notifications = read("lib/notifications.ts");
+  const admin = read("lib/admin.ts");
+
+  assert.match(middleware, /async function isUnderConstructionEnabled/);
+  assert.match(middleware, /createUnderConstructionResponse/);
+  assert.match(middleware, /createUnderConstructionBlockedResponse/);
+  assert.match(middleware, /underConstructionEnabled && !isAdminRoute && !isAdminLoginRoute/);
+  assert.match(middleware, /\/admin-login\?auth=required/);
+  assert.match(middleware, /redirectUrl\.pathname = "\/feed"/);
+  assert.match(authActions, /errorRedirectTo/);
+  assert.doesNotMatch(authActions, /under-construction/);
+  assert.match(maintenance, /under-construction-illustration\.svg/);
+  assert.match(maintenance, /We are coming back soon/);
+  assert.match(adminLogin, /Admin sign-in/);
+  assert.match(admin, /redirect\("\/admin-login\?auth=required"\)/);
+  assert.match(notifications, /\.is\("archived_at", null\)/);
 });
 
 test("admin user creation uses server-only Supabase admin auth", () => {

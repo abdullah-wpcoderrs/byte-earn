@@ -8,6 +8,18 @@ type SendGmailMessageInput = {
   to: string;
 };
 
+export function getGmailSmtpReadiness() {
+  const user = process.env.GMAIL_SMTP_USER;
+  const password = process.env.GMAIL_SMTP_APP_PASSWORD;
+
+  return {
+    guidance: user && password
+      ? "SMTP is ready."
+      : "Add GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD. EMAIL_FROM is optional and falls back to the Gmail user.",
+    ready: Boolean(user && password),
+  };
+}
+
 function readLine(socket: ReturnType<typeof connect>) {
   return new Promise<string>((resolve, reject) => {
     let buffer = "";
@@ -55,7 +67,7 @@ export async function sendGmailMessage(input: SendGmailMessageInput) {
   const from = process.env.EMAIL_FROM || user;
 
   if (!user || !password || !from) {
-    throw new Error("GMAIL_SMTP_USER, GMAIL_SMTP_APP_PASSWORD, and EMAIL_FROM are required.");
+    throw new Error("GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD are required. EMAIL_FROM is optional.");
   }
 
   const socket = connect({ host: "smtp.gmail.com", port: 465, servername: "smtp.gmail.com" });

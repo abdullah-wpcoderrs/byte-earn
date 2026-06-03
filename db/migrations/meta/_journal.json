@@ -253,6 +253,55 @@
       "when": 1780056000000,
       "tag": "0035_sponsored_tasks_media_bucket",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1780142400000,
+      "tag": "0036_sponsored_task_provider_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1780228800000,
+      "tag": "0037_adsterra_cpagrip_runtime_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1780315200000,
+      "tag": "0038_sponsored_task_fraud_and_pending_ux",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1780401600000,
+      "tag": "0039_sponsored_task_reward_authority_lockdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1780488000000,
+      "tag": "0040_provider_geo_fraud_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1780574400000,
+      "tag": "0041_task_session_fraud_review_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1780660800000,
+      "tag": "0042_platform_phase123_readiness_and_email_queue",
+      "breakpoints": true
     }
   ]
 }

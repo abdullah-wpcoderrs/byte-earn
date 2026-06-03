@@ -1,15 +1,10 @@
-import { Archive, BellPlus, MailPlus, Save, Trash2 } from "lucide-react";
-import {
-  archiveNotificationAction,
-  createEmailBlastAction,
-  createNotificationAction,
-  deleteNotificationAction,
-  updatePlatformSettingsAction,
-} from "@/app/admin/actions";
-import { Select } from "@/components/ui/select";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { CheckCircle2, Save, ServerCog, TriangleAlert } from "lucide-react";
+import { updatePlatformSettingsAction } from "@/app/admin/actions";
+import { NotificationHistoryActions } from "./notification-history-actions";
+import { PlatformComposerTools } from "./platform-composer-tools";
 import { TextInput } from "@/components/ui/input";
-import { getAdminNotifications, getOrCreatePlatformSettings } from "@/lib/admin";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { getAdminNotificationRecipients, getAdminNotifications, getOrCreatePlatformSettings, getPlatformReadiness } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,23 +15,12 @@ type ImpactRow = {
   state: string;
 };
 
-function TextArea({ label, name, placeholder }: { label: string; name: string; placeholder?: string }) {
-  return (
-    <label className="grid gap-2">
-      <span className="font-medium text-slate-200">{label}</span>
-      <textarea
-        className="min-h-28 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 py-2 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
-        name={name}
-        placeholder={placeholder}
-      />
-    </label>
-  );
-}
-
 export default async function AdminPlatformPage() {
-  const [settings, notifications] = await Promise.all([
+  const [settings, notifications, readiness, recipients] = await Promise.all([
     getOrCreatePlatformSettings(),
     getAdminNotifications(),
+    getPlatformReadiness(),
+    getAdminNotificationRecipients(),
   ]);
   const impactRows: ImpactRow[] = [
     {
@@ -55,7 +39,7 @@ export default async function AdminPlatformPage() {
     },
     {
       detail: settings.sponsored_tasks_enabled
-        ? "Users can view and complete Monetag, CPAGrip, and internal tasks."
+        ? "Users can view and complete Adsterra, CPAGrip, and internal tasks."
         : "Users see a custom waiting screen; task sessions are blocked.",
       label: "Sponsored tasks",
       routes: ["/tasks", "/admin/tasks"],
@@ -78,7 +62,7 @@ export default async function AdminPlatformPage() {
       state: settings.under_construction ? "Enabled" : "Disabled",
     },
     {
-      detail: "Task reward progress uses this cap when watch/task credit enforcement is active.",
+      detail: "Completed internal watch-media tasks stop rewarding once a user reaches this many watched seconds for the day.",
       label: "Daily watch cap",
       routes: ["/tasks", "/wallet"],
       state: `${settings.daily_watch_limit_seconds} seconds`,
@@ -99,6 +83,33 @@ export default async function AdminPlatformPage() {
               View badges
             </a>
           </div>
+        </div>
+      </section>
+
+      <section className="glass overflow-hidden">
+        <div className="border-b border-white/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Platform readiness</h2>
+              <p className="mt-1 text-muted">Dependency checks for the admin tools that rely on trusted services or external delivery setup.</p>
+            </div>
+            <span className="inline-flex items-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200">
+              <ServerCog className="size-4 text-cyan-100" />
+              {readiness.readyCount}/{readiness.totalCount} checks ready
+            </span>
+          </div>
+        </div>
+        <div className="divide-y divide-white/10">
+          {readiness.checks.map((check) => (
+            <article className="grid gap-3 p-4 lg:grid-cols-[180px_120px_1fr]" key={check.key}>
+              <p className="font-semibold text-slate-100">{check.label}</p>
+              <span className={`inline-flex items-center justify-center gap-2 rounded-[5px] border px-2 py-1 text-[11px] font-semibold ${check.ready ? "border-emerald-200/20 bg-emerald-300/10 text-emerald-100" : "border-amber-200/20 bg-amber-300/10 text-amber-100"}`}>
+                {check.ready ? <CheckCircle2 className="size-3.5" /> : <TriangleAlert className="size-3.5" />}
+                {check.ready ? "Ready" : "Needs setup"}
+              </span>
+              <p className="leading-5 text-slate-300">{check.detail}</p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -147,35 +158,7 @@ export default async function AdminPlatformPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-        <form action={createNotificationAction} className="glass grid content-start gap-3 p-4">
-          <h2 className="text-base font-semibold">Platform notification</h2>
-          <TextInput label="Title" name="title" />
-          <TextArea label="Body" name="body" />
-          <Select label="Audience" name="audience" defaultValue="all">
-            <option value="all">All users</option>
-            <option value="active">Active users</option>
-            <option value="suspended">Suspended users</option>
-          </Select>
-          <SubmitButton icon={<BellPlus className="size-4" />} pendingLabel="Creating..." type="submit">
-            Create
-          </SubmitButton>
-        </form>
-
-        <form action={createEmailBlastAction} className="glass grid content-start gap-3 p-4">
-          <h2 className="text-base font-semibold">HTML email blast</h2>
-          <TextInput label="Subject" name="subject" />
-          <TextArea label="HTML body" name="htmlBody" placeholder="<p>Campaign update</p>" />
-          <Select label="Audience" name="audience" defaultValue="all">
-            <option value="all">All users</option>
-            <option value="active">Active users</option>
-            <option value="suspended">Suspended users</option>
-          </Select>
-          <SubmitButton icon={<MailPlus className="size-4" />} pendingLabel="Saving blast..." type="submit">
-            Save blast
-          </SubmitButton>
-        </form>
-      </section>
+      <PlatformComposerTools recipients={recipients} />
 
       <section className="glass overflow-hidden">
         <div className="border-b border-white/10 p-4">
@@ -191,23 +174,11 @@ export default async function AdminPlatformPage() {
                   {notification.archivedAt ? <span className="rounded-[5px] border border-amber-200/20 bg-amber-300/10 px-2 py-1 text-[11px] font-semibold text-amber-100">Archived</span> : null}
                 </div>
                 <p className="mt-1 leading-5 text-slate-300">{notification.body}</p>
+                {notification.recipientLabel ? <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Recipient: {notification.recipientLabel}</p> : null}
               </div>
               <span className="rounded-[5px] border border-white/10 px-2 py-1 text-center text-slate-200">{notification.audience}</span>
               <time className="text-slate-400">{notification.createdAt.toLocaleString("en-NG")}</time>
-              <div className="grid grid-cols-2 gap-2">
-                <form action={archiveNotificationAction}>
-                  <input name="notificationId" type="hidden" value={notification.id} />
-                  <SubmitButton className="w-full" disabled={Boolean(notification.archivedAt)} icon={<Archive className="size-4" />} pendingLabel="Archiving..." type="submit" variant="secondary">
-                    Archive
-                  </SubmitButton>
-                </form>
-                <form action={deleteNotificationAction}>
-                  <input name="notificationId" type="hidden" value={notification.id} />
-                  <SubmitButton className="w-full" icon={<Trash2 className="size-4" />} pendingLabel="Deleting..." type="submit" variant="danger">
-                    Delete
-                  </SubmitButton>
-                </form>
-              </div>
+              <NotificationHistoryActions archived={Boolean(notification.archivedAt)} notificationId={notification.id} />
             </article>
           ))}
         </div>

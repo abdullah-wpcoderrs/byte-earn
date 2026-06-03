@@ -18,9 +18,9 @@ This artifact documents how the admin platform tools should be wired across byte
 | Setting | Intended Runtime Consumer | Behavior |
 | --- | --- | --- |
 | `post_approval_required` | Upload action, moderation feed | New posts are `pending` when enabled, otherwise `published`. |
-| `under_construction` | `proxy.ts` / middleware | Non-admin authenticated users redirect to `/under-construction`; admins bypass. |
+| `under_construction` | `proxy.ts` / middleware | Public requests are intercepted by middleware and return a maintenance page; admin paths stay separate. |
 | `sponsored_withdrawals_unlocked` | Wallet balance and withdrawal action | Sponsored credits become eligible for withdrawal when enabled. |
-| `daily_watch_limit_seconds` | Sponsored task/watch-time recording | Server caps daily watch credit accrual. |
+| `daily_watch_limit_seconds` | Sponsored task/watch-time recording | Intended watch-time cap; runtime enforcement is still pending. |
 | `leaderboard_strict_mode` | Leaderboard query/scoring | Strict mode requires all enabled criteria. |
 | `leaderboard_uses_referrals` | Leaderboard query/scoring | Referral count contributes to rank. |
 | `leaderboard_uses_engagement` | Leaderboard query/scoring | Likes/comments contribute to rank. |

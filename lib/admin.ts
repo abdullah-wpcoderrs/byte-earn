@@ -1,6 +1,8 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { buildEmailBlastPreview, parseRecipientSnapshot } from "@/lib/email-blasts";
+import { getGmailSmtpReadiness } from "@/lib/email/gmail-smtp";
 import { getOrCreateFinanceSettings } from "@/lib/finance-settings";
 import { defaultPlatformSettings, type PlatformSettings } from "@/lib/platform-settings";
 import { generateReferralCode } from "@/lib/referrals";
@@ -27,6 +29,8 @@ export type WithdrawalReviewScope = "history" | "requests";
 export type AdminBadgeOption = Awaited<ReturnType<typeof getAdminBadgeOptions>>[number];
 export type AdminNotificationRow = Awaited<ReturnType<typeof getAdminNotifications>>[number];
 export type AuditLogRow = Awaited<ReturnType<typeof getAuditLogRows>>[number];
+export type PlatformReadinessCheck = Awaited<ReturnType<typeof getPlatformReadiness>>["checks"][number];
+export type AdminNotificationRecipientOption = Awaited<ReturnType<typeof getAdminNotificationRecipients>>[number];
 
 type AssignedBadgeRow = {
   badge_id: string;
@@ -112,7 +116,7 @@ export async function requireAdmin(): Promise<AdminSession> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/?admin=signin");
+    redirect("/admin-login?auth=required");
   }
 
   const { data: profile, error } = await supabase
@@ -542,15 +546,19 @@ export async function getEmailBlastHistory() {
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const primaryResult = await supabase
     .from("email_blasts")
-    .select("id, subject, html_body, audience, status, recipient_count, sent_at, failed_at, error_message, created_at, profiles:created_by(display_name)")
+    .select("id, subject, html_body, audience, status, recipient_count, sent_at, failed_at, error_message, recipient_snapshot, failed_recipient_snapshot, send_cursor, failed_recipient_count, processing_started_at, last_processed_at, created_at, profiles:created_by(display_name)")
     .order("created_at", { ascending: false })
     .limit(100);
 
-  if (primaryResult.error && !primaryResult.error.message.includes("status")) {
+  if (
+    primaryResult.error &&
+    !primaryResult.error.message.includes("status") &&
+    !primaryResult.error.message.includes("recipient_snapshot")
+  ) {
     throw new Error(primaryResult.error.message);
   }
 
-  const rows = primaryResult.error?.message.includes("status")
+  const rows = primaryResult.error
     ? await supabase
       .from("email_blasts")
       .select("id, subject, html_body, audience, created_at, profiles:created_by(display_name)")
@@ -563,14 +571,19 @@ export async function getEmailBlastHistory() {
   }
 
   return (rows.data ?? []).map((blast) => ({
-    audience: blast.audience,
+    audience: blast.audience as "active" | "all" | "suspended",
     htmlBody: blast.html_body,
-    bodyPreview: blast.html_body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 140),
+    bodyPreview: buildEmailBlastPreview(blast.html_body),
     createdAt: new Date(blast.created_at),
     createdBy: relationDisplayName(blast.profiles),
     errorMessage: "error_message" in blast ? (blast.error_message as string | null) : null,
+    failedRecipientCount: "failed_recipient_count" in blast ? (blast.failed_recipient_count as number) : 0,
     failedAt: "failed_at" in blast && blast.failed_at ? new Date(blast.failed_at as string) : null,
     id: blast.id,
+    lastProcessedAt: "last_processed_at" in blast && blast.last_processed_at ? new Date(blast.last_processed_at as string) : null,
+    processingStartedAt: "processing_started_at" in blast && blast.processing_started_at ? new Date(blast.processing_started_at as string) : null,
+    processedRecipientCount: "send_cursor" in blast ? (blast.send_cursor as number) : 0,
+    queuedRecipientCount: "recipient_snapshot" in blast ? parseRecipientSnapshot(blast.recipient_snapshot as string | null).length : 0,
     recipientCount: "recipient_count" in blast ? (blast.recipient_count as number) : 0,
     sentAt: "sent_at" in blast && blast.sent_at ? new Date(blast.sent_at as string) : null,
     status: "status" in blast ? (blast.status as string) : "draft",
@@ -578,12 +591,69 @@ export async function getEmailBlastHistory() {
   }));
 }
 
+export async function getPlatformReadiness() {
+  await requireAdmin();
+
+  const smtp = getGmailSmtpReadiness();
+  const serviceRoleReady = hasSupabaseAdminKey();
+  let badgeBucketReady = false;
+  let badgeBucketDetail = serviceRoleReady
+    ? "Checking badge-images storage bucket."
+    : "Add SUPABASE_SERVICE_ROLE_KEY to verify bucket readiness and unlock admin-only actions.";
+
+  if (serviceRoleReady) {
+    try {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase.storage.listBuckets();
+      if (error) {
+        badgeBucketDetail = "The service role is loaded, but bucket checks are failing. Confirm storage access for badge uploads.";
+      } else {
+        badgeBucketReady = (data ?? []).some((bucket) => bucket.name === "badge-images");
+        badgeBucketDetail = badgeBucketReady
+          ? "Badge uploads are ready."
+          : "Create the badge-images storage bucket before admins upload badge artwork.";
+      }
+    } catch {
+      badgeBucketDetail = "The service role is loaded, but storage verification failed.";
+    }
+  }
+
+  const checks = [
+    {
+      detail: serviceRoleReady
+        ? "Admin-only database and auth actions can use the trusted service role."
+        : "Add SUPABASE_SERVICE_ROLE_KEY so admin-only actions can run outside user RLS limits.",
+      key: "service-role",
+      label: "Service role",
+      ready: serviceRoleReady,
+    },
+    {
+      detail: smtp.guidance,
+      key: "smtp",
+      label: "Gmail SMTP",
+      ready: smtp.ready,
+    },
+    {
+      detail: badgeBucketDetail,
+      key: "badge-images",
+      label: "Badge image storage",
+      ready: badgeBucketReady,
+    },
+  ];
+
+  return {
+    checks,
+    readyCount: checks.filter((item) => item.ready).length,
+    totalCount: checks.length,
+  };
+}
+
 export async function getAdminNotifications() {
   await requireAdmin();
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
   const primaryResult = await supabase
     .from("platform_notifications")
-    .select("id, title, body, audience, recipient_profile_id, archived_at, created_at, profiles:created_by(display_name)")
+    .select("id, title, body, audience, recipient_profile_id, archived_at, created_at, profiles:created_by(display_name), recipient_profile:recipient_profile_id(display_name, username, status)")
     .order("created_at", { ascending: false })
     .limit(80);
 
@@ -594,7 +664,7 @@ export async function getAdminNotifications() {
   const rows = primaryResult.error?.message.includes("archived_at")
     ? await supabase
       .from("platform_notifications")
-      .select("id, title, body, audience, recipient_profile_id, created_at, profiles:created_by(display_name)")
+      .select("id, title, body, audience, recipient_profile_id, created_at, profiles:created_by(display_name), recipient_profile:recipient_profile_id(display_name, username, status)")
       .order("created_at", { ascending: false })
       .limit(80)
     : primaryResult;
@@ -610,8 +680,34 @@ export async function getAdminNotifications() {
     createdAt: new Date(notification.created_at),
     createdBy: relationDisplayName(notification.profiles),
     id: notification.id,
+    recipientLabel: notification.recipient_profile_id
+      ? relationDisplayName(notification.recipient_profile) ??
+        ((Array.isArray(notification.recipient_profile) ? notification.recipient_profile[0] : notification.recipient_profile) as { username?: string | null; status?: string | null } | null)?.username ??
+        "Selected user"
+      : null,
     recipientProfileId: notification.recipient_profile_id as string | null,
     title: notification.title,
+  }));
+}
+
+export async function getAdminNotificationRecipients() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, username, status, created_at")
+    .neq("status", "suspended")
+    .order("created_at", { ascending: false })
+    .limit(120);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((profile) => ({
+    id: profile.id,
+    label: profile.display_name ?? profile.username ?? `User ${profile.id.slice(0, 8)}`,
+    meta: [profile.username ? `@${profile.username}` : null, profile.status].filter(Boolean).join(" · "),
   }));
 }
 
@@ -640,7 +736,29 @@ export async function getAdminBadges() {
     throw new Error(rows.error.message);
   }
 
+  const badgeIds = (rows.data ?? []).map((badge) => badge.id);
+  const assignmentsByBadgeId = new Map<string, number>();
+
+  if (badgeIds.length > 0) {
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from("profile_badges")
+      .select("badge_id")
+      .in("badge_id", badgeIds);
+
+    if (assignmentsError) {
+      const missingProfileBadges = assignmentsError.message.includes("profile_badges") || assignmentsError.message.includes("schema cache");
+      if (!missingProfileBadges) {
+        throw new Error(assignmentsError.message);
+      }
+    } else {
+      (assignments ?? []).forEach((assignment) => {
+        assignmentsByBadgeId.set(assignment.badge_id, (assignmentsByBadgeId.get(assignment.badge_id) ?? 0) + 1);
+      });
+    }
+  }
+
   return (rows.data ?? []).map((badge) => ({
+    assignedCount: assignmentsByBadgeId.get(badge.id) ?? 0,
     color: badge.color,
     createdAt: new Date(badge.created_at),
     createdBy: relationDisplayName(badge.profiles),

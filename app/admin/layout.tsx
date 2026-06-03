@@ -51,10 +51,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <a className="flex min-h-10 flex-1 items-center justify-center rounded-[5px] border border-white/10 bg-white/[0.055] px-3 text-center font-semibold text-cyan-100" href="/feed">
             Return to app
           </a>
-          <NotificationBell notifications={notificationData.notifications} unreadCount={notificationData.unreadCount} />
+          <NotificationBell notifications={notificationData.notifications} profileId={notificationData.profileId ?? undefined} unreadCount={notificationData.unreadCount} />
         </div>
       </aside>
-      <AdminMobileNav adminLabel={adminLabel} notifications={notificationData.notifications} unreadCount={notificationData.unreadCount} />
+      <AdminMobileNav adminLabel={adminLabel} notifications={notificationData.notifications} profileId={notificationData.profileId ?? undefined} unreadCount={notificationData.unreadCount} />
       <main className="mx-auto w-full max-w-7xl px-4 pb-10 pt-4 sm:px-6 lg:px-8">{children}</main>
     </div>
   );

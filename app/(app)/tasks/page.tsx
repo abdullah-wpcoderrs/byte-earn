@@ -1,4 +1,4 @@
-import { getActiveTasks, getUserTaskProgress } from "@/lib/tasks-data";
+import { getActiveTasks, getUserTaskProgress, getUserTaskSessionSummary } from "@/lib/tasks-data";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TaskEngine } from "@/components/tasks/task-engine";
@@ -71,6 +71,7 @@ export default async function TasksPage() {
 
   const tasks = await getActiveTasks();
   const progress = await getUserTaskProgress(user.id);
+  const sessionSummary = await getUserTaskSessionSummary(user.id);
   
   const { data: profile } = await supabase
     .from("profiles")
@@ -90,6 +91,7 @@ export default async function TasksPage() {
       <TaskEngine
         tasks={tasks}
         progress={progress}
+        sessionSummary={sessionSummary}
         profileId={user.id}
         referralCode={profile?.referral_code || ""}
       />

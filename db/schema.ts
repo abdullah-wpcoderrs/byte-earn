@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   index,
   integer,
   numeric,
@@ -42,8 +43,8 @@ export const signupPaymentStatus = pgEnum("signup_payment_status", [
   "abandoned",
 ]);
 export const taskStatus = pgEnum("task_status", ["draft", "active", "paused", "archived"]);
-export const taskProvider = pgEnum("task_provider", ["monetag", "cpagrip", "internal"]);
-export const taskSessionStatus = pgEnum("task_session_status", ["pending", "completed", "rejected"]);
+export const taskProvider = pgEnum("task_provider", ["monetag", "adsterra", "cpagrip", "internal"]);
+export const taskSessionStatus = pgEnum("task_session_status", ["pending", "completed", "rejected", "suspicious"]);
 export const referralAttributionStatus = pgEnum("referral_attribution_status", ["pending", "qualified", "rejected"]);
 
 export const profiles = pgTable("profiles", {
@@ -163,6 +164,7 @@ export const sponsoredTasks = pgTable("sponsored_tasks", {
   id: uuid("id").defaultRandom().primaryKey(),
   provider: taskProvider("provider").notNull().default("internal"),
   status: taskStatus("status").notNull().default("draft"),
+  taskType: text("task_type").notNull().default("smartlink"),
   title: text("title").notNull(),
   description: text("description"), // For caption/instructions
   mediaUrl: text("media_url"), // Image or video for internal tasks
@@ -171,25 +173,74 @@ export const sponsoredTasks = pgTable("sponsored_tasks", {
   limitPerUser: integer("limit_per_user").notNull().default(1), // Daily cap per user
   globalCap: integer("global_cap"), // Max total completions (for budget)
   completionsCount: integer("completions_count").notNull().default(0),
+  providerPlacementId: text("provider_placement_id"),
+  providerDomainId: text("provider_domain_id"),
+  providerTrackingParam: text("provider_tracking_param").notNull().default("subid"),
+  providerReconciliationMode: text("provider_reconciliation_mode").notNull().default("postback"),
+  providerStatus: text("provider_status").notNull().default("not_configured"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("sponsored_tasks_provider_status_idx").on(table.provider, table.status),
+]);
 
 export const taskSessions = pgTable("task_sessions", {
   id: uuid("id").defaultRandom().primaryKey(), // Sent as subid/tracking_token
   taskId: uuid("task_id").notNull().references(() => sponsoredTasks.id),
   profileId: uuid("profile_id").notNull().references(() => profiles.id),
   provider: taskProvider("provider").notNull(),
-  status: taskSessionStatus("status").notNull().default("pending"),
+  status: taskSessionStatus("status").notNull().default("pending"), // Lifecycle changes happen through trusted server actions.
   ipAddress: text("ip_address"),
+  countryCode: text("country_code"),
   userAgent: text("user_agent"),
+  trackingToken: text("tracking_token"),
+  providerEventId: text("provider_event_id"),
+  fraudReason: text("fraud_reason"),
+  fraudMetadata: text("fraud_metadata"),
   rewardCredits: integer("reward_credits").notNull().default(0),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  pendingExpiresAt: timestamp("pending_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("task_sessions_profile_provider_idx").on(table.profileId, table.provider),
   index("task_sessions_created_at_idx").on(table.createdAt),
+  index("task_sessions_task_profile_status_idx").on(table.taskId, table.profileId, table.status),
+  index("task_sessions_pending_expires_at_idx").on(table.pendingExpiresAt),
+  index("task_sessions_ip_task_created_at_idx").on(table.ipAddress, table.taskId, table.createdAt),
+  index("task_sessions_country_task_created_at_idx").on(table.countryCode, table.taskId, table.createdAt),
+  index("task_sessions_profile_status_created_at_idx").on(table.profileId, table.status, table.createdAt),
+  index("task_sessions_fraud_reason_idx").on(table.fraudReason, table.createdAt),
+]);
+
+export const sponsoredTaskProviderEvents = pgTable("sponsored_task_provider_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: taskProvider("provider").notNull(),
+  eventType: text("event_type").notNull().default("postback"),
+  providerEventId: text("provider_event_id"),
+  providerOfferId: text("provider_offer_id"),
+  sessionId: uuid("session_id").references(() => taskSessions.id, { onDelete: "set null" }),
+  taskId: uuid("task_id").references(() => sponsoredTasks.id, { onDelete: "set null" }),
+  profileId: uuid("profile_id").references(() => profiles.id, { onDelete: "set null" }),
+  placementSubId: text("placement_sub_id"),
+  payoutAmount: numeric("payout_amount", { precision: 12, scale: 4 }),
+  reportedClicks: integer("reported_clicks").notNull().default(0),
+  reportedImpressions: integer("reported_impressions").notNull().default(0),
+  reportedRevenue: numeric("reported_revenue", { precision: 12, scale: 6 }),
+  currency: text("currency"),
+  ipAddress: text("ip_address"),
+  countryCode: text("country_code"),
+  status: text("status").notNull().default("received"),
+  rawPayload: text("raw_payload"),
+  statsDate: date("stats_date"),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("sponsored_task_provider_events_session_idx").on(table.sessionId),
+  index("sponsored_task_provider_events_task_idx").on(table.taskId),
+  index("sponsored_task_provider_events_profile_idx").on(table.profileId),
+  index("sponsored_task_provider_events_placement_idx").on(table.provider, table.placementSubId),
+  index("sponsored_task_provider_events_country_idx").on(table.provider, table.countryCode, table.createdAt),
 ]);
 
 export const rewardRules = pgTable("reward_rules", {
@@ -272,7 +323,13 @@ export const emailBlasts = pgTable("email_blasts", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
   failedAt: timestamp("failed_at", { withTimezone: true }),
   errorMessage: text("error_message"),
+  recipientSnapshot: text("recipient_snapshot"),
+  failedRecipientSnapshot: text("failed_recipient_snapshot"),
+  sendCursor: integer("send_cursor").notNull().default(0),
   recipientCount: integer("recipient_count").notNull().default(0),
+  failedRecipientCount: integer("failed_recipient_count").notNull().default(0),
+  processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
+  lastProcessedAt: timestamp("last_processed_at", { withTimezone: true }),
   createdBy: uuid("created_by").references(() => profiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

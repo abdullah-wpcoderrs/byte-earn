@@ -1,23 +1,48 @@
 "use client";
 
 import { Bell } from "lucide-react";
-import { useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { markNotificationReadAction } from "@/app/notifications/actions";
+import { createClient } from "@/lib/supabase/client";
 import type { NotificationItem } from "@/lib/notifications";
 
 type NotificationBellProps = {
   panelPlacement?: "sidebar" | "mobile-header";
   notifications: NotificationItem[];
+  profileId?: string;
   unreadCount: number;
 };
 
-export function NotificationBell({ notifications, panelPlacement = "sidebar", unreadCount }: NotificationBellProps) {
+export function NotificationBell({ notifications, panelPlacement = "sidebar", profileId, unreadCount }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const panelPosition =
     panelPlacement === "mobile-header"
       ? "fixed left-4 right-4 top-[72px] z-[70] w-auto"
       : "fixed bottom-4 left-[276px] z-50 max-lg:absolute max-lg:bottom-12 max-lg:left-auto max-lg:right-0";
   const panelWidth = panelPlacement === "mobile-header" ? "" : "w-[min(320px,calc(100vw-2rem))]";
+
+  useEffect(() => {
+    if (!profileId) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`notifications:${profileId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "platform_notifications" }, () => {
+        startTransition(() => router.refresh());
+      })
+      .on("postgres_changes", { event: "*", filter: `profile_id=eq.${profileId}`, schema: "public", table: "notification_reads" }, () => {
+        startTransition(() => router.refresh());
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [profileId, router, supabase]);
 
   return (
     <div className="relative">

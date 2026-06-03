@@ -30,6 +30,7 @@ type NavItem = {
 type NavigationProps = {
   isAdmin?: boolean;
   notifications?: NotificationItem[];
+  profileId?: string;
   unreadCount?: number;
 };
 
@@ -66,7 +67,7 @@ export function AppBrand() {
   );
 }
 
-export function DesktopSidebar({ isAdmin, notifications = [], unreadCount = 0 }: NavigationProps) {
+export function DesktopSidebar({ isAdmin, notifications = [], profileId, unreadCount = 0 }: NavigationProps) {
   const pathname = usePathname();
 
   return (
@@ -94,7 +95,7 @@ export function DesktopSidebar({ isAdmin, notifications = [], unreadCount = 0 }:
         })}
       </nav>
       <div className="flex items-center gap-2">
-        <NotificationBell notifications={notifications} unreadCount={unreadCount} />
+        <NotificationBell notifications={notifications} profileId={profileId} unreadCount={unreadCount} />
         <form action={signOutAction}>
           <button
             aria-label="Log out"
@@ -110,7 +111,7 @@ export function DesktopSidebar({ isAdmin, notifications = [], unreadCount = 0 }:
   );
 }
 
-export function MobileHeader({ notifications = [], unreadCount = 0 }: NavigationProps) {
+export function MobileHeader({ notifications = [], profileId, unreadCount = 0 }: NavigationProps) {
   const pathname = usePathname();
   const profileActive = isActive(pathname, "/profile");
 
@@ -121,7 +122,7 @@ export function MobileHeader({ notifications = [], unreadCount = 0 }: Navigation
           <AppBrand />
         </a>
         <div className="flex shrink-0 items-center gap-2">
-          <NotificationBell notifications={notifications} panelPlacement="mobile-header" unreadCount={unreadCount} />
+          <NotificationBell notifications={notifications} panelPlacement="mobile-header" profileId={profileId} unreadCount={unreadCount} />
           <a
             aria-current={profileActive ? "page" : undefined}
             aria-label="Open profile"
