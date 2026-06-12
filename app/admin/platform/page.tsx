@@ -54,6 +54,38 @@ export default async function AdminPlatformPage() {
       state: settings.sponsored_withdrawals_unlocked ? "Unlocked" : "Locked",
     },
     {
+      detail: settings.referral_withdrawals_unlocked
+        ? "Referral credits are available for payout."
+        : "Referral credits remain locked outside fallback unlock rules.",
+      label: "Referral withdrawals",
+      routes: ["/wallet", "/admin/withdrawals"],
+      state: settings.referral_withdrawals_unlocked ? "Unlocked" : "Locked",
+    },
+    {
+      detail: settings.watch_time_withdrawals_unlocked
+        ? "Watch time credits are available for payout."
+        : "Watch time credits remain locked outside fallback unlock rules.",
+      label: "Watch time withdrawals",
+      routes: ["/wallet", "/admin/withdrawals"],
+      state: settings.watch_time_withdrawals_unlocked ? "Unlocked" : "Locked",
+    },
+    {
+      detail: settings.admin_credit_withdrawals_unlocked
+        ? "Admin credits are available for payout."
+        : "Admin credits remain locked outside fallback unlock rules.",
+      label: "Admin credit withdrawals",
+      routes: ["/wallet", "/admin/withdrawals"],
+      state: settings.admin_credit_withdrawals_unlocked ? "Unlocked" : "Locked",
+    },
+    {
+      detail: settings.adjustment_withdrawals_unlocked
+        ? "Adjustment credits are available for payout."
+        : "Adjustment credits remain locked outside fallback unlock rules.",
+      label: "Adjustment withdrawals",
+      routes: ["/wallet", "/admin/withdrawals"],
+      state: settings.adjustment_withdrawals_unlocked ? "Unlocked" : "Locked",
+    },
+    {
       detail: settings.under_construction
         ? "Protected user routes are intercepted by the construction screen."
         : "Protected user routes remain available to eligible users.",
@@ -119,6 +151,10 @@ export default async function AdminPlatformPage() {
           ["postApprovalRequired", "Require post approval", settings.post_approval_required],
           ["sponsoredTasksEnabled", "Enable sponsored tasks feature", settings.sponsored_tasks_enabled],
           ["sponsoredWithdrawalsUnlocked", "Unlock sponsored withdrawals", settings.sponsored_withdrawals_unlocked],
+          ["referralWithdrawalsUnlocked", "Unlock referral withdrawals", settings.referral_withdrawals_unlocked],
+          ["watchTimeWithdrawalsUnlocked", "Unlock watch time withdrawals", settings.watch_time_withdrawals_unlocked],
+          ["adminCreditWithdrawalsUnlocked", "Unlock admin credit withdrawals", settings.admin_credit_withdrawals_unlocked],
+          ["adjustmentWithdrawalsUnlocked", "Unlock adjustment withdrawals", settings.adjustment_withdrawals_unlocked],
           ["underConstruction", "Under-construction global switch", settings.under_construction],
         ].map(([name, label, checked]) => (
           <label className="flex min-h-12 items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.055] px-3" key={String(name)}>

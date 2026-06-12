@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type SponsoredTask, type TaskSessionSummary } from "@/lib/tasks-data";
-import { completeInternalTask, completeInternalVisitTask, completeInternalWatchTask, startTask } from "@/app/(app)/tasks/actions";
+import { completeInternalTask, completeInternalVisitTask, completeInternalWatchTask, completeInternalShareTask, startTask } from "@/app/(app)/tasks/actions";
 import { Button } from "@/components/ui/button";
 import { Share2, Loader2, CheckCircle2 } from "lucide-react";
 
@@ -194,8 +194,20 @@ function InternalTaskCard({ task, completed, summary, profileId, referralCode }:
   const [watchSessionId, setWatchSessionId] = useState<string | null>(task.taskType === "watch_media" ? summary?.latestPendingSessionId ?? null : null);
   const [watchedSeconds, setWatchedSeconds] = useState(0);
   const [watchSubmitted, setWatchSubmitted] = useState(false);
+  const [shareSessionId, setShareSessionId] = useState<string | null>(task.taskType !== "visit_url" && task.taskType !== "watch_media" ? summary?.latestPendingSessionId ?? null : null);
+  const [shareSeconds, setShareSeconds] = useState(60);
   const isFinished = completed >= task.limitPerUser;
-  const hasPending = ((summary?.pending ?? 0) > 0 && !visitSessionId && !watchSessionId) || (summary?.suspicious ?? 0) > 0;
+  const hasPending = ((summary?.pending ?? 0) > 0 && !visitSessionId && !watchSessionId && !shareSessionId) || (summary?.suspicious ?? 0) > 0;
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (shareSessionId && shareSeconds > 0) {
+      interval = setInterval(() => {
+        setShareSeconds((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [shareSessionId, shareSeconds]);
 
   const submitVisitCompletion = async () => {
     if (!visitSessionId) return;
@@ -221,6 +233,20 @@ function InternalTaskCard({ task, completed, summary, profileId, referralCode }:
       setMessage("Watch time verified. Credits have been issued.");
     } catch (error: unknown) {
       setMessage(errorMessage(error, "Failed to verify watch time"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitShareCompletion = async () => {
+    if (!shareSessionId || shareSeconds > 0) return;
+    setLoading(true);
+    try {
+      await completeInternalShareTask(shareSessionId);
+      setShareSessionId(null);
+      setMessage("Share verified. Credits have been issued.");
+    } catch (error: unknown) {
+      setMessage(errorMessage(error, "Failed to verify share"));
     } finally {
       setLoading(false);
     }
@@ -253,6 +279,12 @@ function InternalTaskCard({ task, completed, summary, profileId, referralCode }:
         return;
       }
 
+      if (!shareSessionId && !isFinished && !hasPending) {
+        const { sessionId } = await startTask(task.id);
+        setShareSessionId(sessionId);
+        setShareSeconds(60);
+      }
+
       if (navigator.share) {
         await navigator.share({
           title: task.title,
@@ -261,14 +293,7 @@ function InternalTaskCard({ task, completed, summary, profileId, referralCode }:
         });
       } else {
         await navigator.clipboard.writeText(shareText);
-        setMessage("Link copied. The task is now waiting for admin validation.");
-      }
-
-      if (!isFinished) {
-        const res = await completeInternalTask(task.id);
-        if (res.success) {
-          setMessage("Task submitted. Credits will be issued after validation.");
-        }
+        setMessage("Link copied. Please wait 60 seconds to claim your reward.");
       }
     } catch (error: unknown) {
       if (!isAbortError(error)) {
@@ -330,8 +355,17 @@ function InternalTaskCard({ task, completed, summary, profileId, referralCode }:
           </Link>
           <Button
             className="min-h-9 px-2.5 text-sm"
-            onClick={visitSessionId ? submitVisitCompletion : watchSessionId ? () => submitWatchCompletion(watchedSeconds) : handleShare}
-            disabled={isFinished || hasPending || loading || (task.taskType === "watch_media" && Boolean(watchSessionId) && (watchSubmitted || watchedSeconds < 30))}
+            onClick={
+              visitSessionId ? submitVisitCompletion : 
+              watchSessionId ? () => submitWatchCompletion(watchedSeconds) : 
+              shareSessionId ? (shareSeconds <= 0 ? submitShareCompletion : undefined) : 
+              handleShare
+            }
+            disabled={
+              isFinished || hasPending || loading || 
+              (task.taskType === "watch_media" && Boolean(watchSessionId) && (watchSubmitted || watchedSeconds < 30)) ||
+              (Boolean(shareSessionId) && shareSeconds > 0)
+            }
             variant={isFinished ? "secondary" : "primary"}
           >
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
@@ -343,6 +377,8 @@ function InternalTaskCard({ task, completed, summary, profileId, referralCode }:
               <>Visit</>
             ) : task.taskType === "watch_media" ? (
               <>{watchSubmitted ? "Submitted" : watchSessionId ? "Complete Watch" : "Start Watch"}</>
+            ) : shareSessionId ? (
+              <>{shareSeconds > 0 ? `Wait ${shareSeconds}s` : "Complete Share"}</>
             ) : (
               <><Share2 className="w-4 h-4 mr-2" /> Share</>
             )}

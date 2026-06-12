@@ -3,12 +3,11 @@
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { validateUsername } from "@/lib/profile-validation";
 import { isPaystackActivationEnabled } from "@/lib/config/payments";
 import { assertRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createUniqueReferralCode } from "@/lib/referrals";
 import { createClient } from "@/lib/supabase/server";
-
-const usernamePattern = /^[a-z0-9_]{3,24}$/;
 
 function readRequiredString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -18,10 +17,6 @@ function readRequiredString(formData: FormData, key: string) {
   }
 
   return value.trim();
-}
-
-function normalizeUsername(value: string) {
-  return value.trim().toLowerCase();
 }
 
 function localRedirectTarget(formData: FormData, key: string, fallback: string) {
@@ -39,13 +34,19 @@ function withQuery(pathname: string, key: string, value: string) {
 
 export async function signUpAction(formData: FormData) {
   const displayName = readRequiredString(formData, "displayName");
-  const username = normalizeUsername(readRequiredString(formData, "username"));
+  const usernameResult = validateUsername(readRequiredString(formData, "username"));
   const email = readRequiredString(formData, "email");
   const password = readRequiredString(formData, "password");
 
-  if (!usernamePattern.test(username)) {
-    redirect("/?auth_error=Username%20must%20use%203%20to%2024%20lowercase%20letters,%20numbers,%20or%20underscores.");
+  if (!usernameResult.ok) {
+    redirect(
+      usernameResult.code === "reserved_username"
+        ? "/?auth_error=This%20username%20is%20reserved%20and%20cannot%20be%20used."
+        : "/?auth_error=Username%20must%20use%203%20to%2024%20lowercase%20letters,%20numbers,%20or%20underscores.",
+    );
   }
+
+  const username = usernameResult.value;
 
   const requestHeaders = await headers();
   const clientIp = getClientIp(requestHeaders);

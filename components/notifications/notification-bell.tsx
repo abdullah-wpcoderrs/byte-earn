@@ -29,8 +29,9 @@ export function NotificationBell({ notifications, panelPlacement = "sidebar", pr
       return;
     }
 
+    const subscriptionId = Math.random().toString(36).slice(2, 9);
     const channel = supabase
-      .channel(`notifications:${profileId}`)
+      .channel(`notifications:${profileId}:${subscriptionId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "platform_notifications" }, () => {
         startTransition(() => router.refresh());
       })

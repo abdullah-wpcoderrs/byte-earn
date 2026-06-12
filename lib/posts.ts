@@ -121,6 +121,9 @@ type ProfileRow = {
   referral_code: string;
   referral_count: number;
   username: string | null;
+  bank_name?: string | null;
+  account_number?: string | null;
+  account_name?: string | null;
 };
 
 type ProfileBadgeRow = {
@@ -442,7 +445,7 @@ export async function getOwnProfileData() {
   const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
 
   const [profileResult, postsResult, bookmarksResult, badgesByProfile] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, referral_code, referral_count, username").eq("id", viewerId).maybeSingle(),
+    supabase.from("profiles").select("id, display_name, referral_code, referral_count, username, bank_name, account_number, account_name").eq("id", viewerId).maybeSingle(),
     supabase
       .from("posts")
       .select("id, type, status, caption, media_url, media_urls, likes_count, impressions_count")
@@ -490,6 +493,9 @@ export async function getOwnProfileData() {
       referralCode: profile.referral_code,
       referralCount: profile.referral_count,
       username: profile.username,
+      bankName: profile.bank_name,
+      accountNumber: profile.account_number,
+      accountName: profile.account_name,
     },
     pendingPosts: ownPosts.filter((post) => post.status === "pending"),
     posts: ownPosts,

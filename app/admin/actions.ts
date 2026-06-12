@@ -482,6 +482,10 @@ export async function updatePlatformSettingsAction(formData: FormData) {
     post_approval_required: formData.get("postApprovalRequired") === "on",
     sponsored_tasks_enabled: formData.get("sponsoredTasksEnabled") === "on",
     sponsored_withdrawals_unlocked: formData.get("sponsoredWithdrawalsUnlocked") === "on",
+    referral_withdrawals_unlocked: formData.get("referralWithdrawalsUnlocked") === "on",
+    watch_time_withdrawals_unlocked: formData.get("watchTimeWithdrawalsUnlocked") === "on",
+    admin_credit_withdrawals_unlocked: formData.get("adminCreditWithdrawalsUnlocked") === "on",
+    adjustment_withdrawals_unlocked: formData.get("adjustmentWithdrawalsUnlocked") === "on",
     under_construction: formData.get("underConstruction") === "on",
     updated_at: new Date().toISOString(),
   };

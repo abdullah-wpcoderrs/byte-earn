@@ -2,10 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { validatePayoutDetails, validateUsername } from "@/lib/profile-validation";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
-
-const usernamePattern = /^[a-z0-9_]{3,24}$/;
 
 function readRequiredString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -17,13 +16,15 @@ function readRequiredString(formData: FormData, key: string) {
   return value.trim();
 }
 
-function normalizeUsername(value: string) {
-  return value.trim().toLowerCase();
-}
-
 export async function updateOwnProfileAction(formData: FormData) {
   const displayName = readRequiredString(formData, "displayName").slice(0, 80);
-  const username = normalizeUsername(readRequiredString(formData, "username"));
+  const usernameResult = validateUsername(readRequiredString(formData, "username"));
+  const payoutResult = validatePayoutDetails({
+    accountName: readRequiredString(formData, "accountName"),
+    accountNumber: readRequiredString(formData, "accountNumber"),
+    bankName: readRequiredString(formData, "bankName"),
+  });
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -39,16 +40,26 @@ export async function updateOwnProfileAction(formData: FormData) {
     redirect("/profile?error=invalid_name");
   }
 
-  if (!usernamePattern.test(username)) {
-    redirect("/profile?error=invalid_username");
+  if (!usernameResult.ok) {
+    redirect(`/profile?error=${usernameResult.code}`);
   }
+
+  if (!payoutResult.ok) {
+    redirect(`/profile?error=${payoutResult.code}`);
+  }
+
+  const username = usernameResult.value;
+  const { accountName, accountNumber, bankName } = payoutResult.value;
 
   const { error } = await supabase
     .from("profiles")
     .update({
       display_name: displayName,
-      updated_at: new Date().toISOString(),
       username,
+      bank_name: bankName,
+      account_number: accountNumber,
+      account_name: accountName,
+      updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);
 

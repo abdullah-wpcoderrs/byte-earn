@@ -44,7 +44,7 @@ export function EmailBlastComposerModal({ blast, compact = false }: EmailBlastCo
         </Button>
       )}
 
-      <Modal className="max-w-[min(88rem,calc(100vw-2rem))]" onClose={() => setOpen(false)} open={open} title={isEdit ? "Edit email blast" : "Create email blast"}>
+      <Modal className="!max-w-[50rem]" onClose={() => setOpen(false)} open={open} title={isEdit ? "Edit email blast" : "Create email blast"}>
         <form
           action={async (formData) => {
             if (isEdit) {

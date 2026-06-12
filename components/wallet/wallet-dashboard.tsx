@@ -7,22 +7,27 @@ import { Modal } from "@/components/ui/modal";
 import type { FinanceSettings } from "@/lib/finance-settings";
 import { creditsToNaira, creditsToUsd, formatNaira, formatUsd } from "@/lib/money";
 import type { WalletBreakdown } from "@/lib/wallet";
-import { areSponsoredWithdrawalsUnlocked, getAvailableWithdrawalCredits, getTotalCredits } from "@/lib/wallet";
+import { getTotalCredits } from "@/lib/wallet";
 
 type FiatMode = "NGN" | "USD";
 
 type WalletDashboardProps = {
-  adminSponsoredUnlocked: boolean;
+  bankDetails: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+  };
   financeSettings: FinanceSettings;
   wallet: WalletBreakdown;
+  withdrawalError?: string;
+  withdrawalStatus?: string;
 };
 
-export function WalletDashboard({ adminSponsoredUnlocked, financeSettings, wallet }: WalletDashboardProps) {
+export function WalletDashboard({ bankDetails, financeSettings, wallet, withdrawalError, withdrawalStatus }: WalletDashboardProps) {
   const [fiatMode, setFiatMode] = useState<FiatMode>("NGN");
   const [modalOpen, setModalOpen] = useState(false);
-  const sponsoredUnlocked = areSponsoredWithdrawalsUnlocked(adminSponsoredUnlocked);
   const totalCredits = getTotalCredits(wallet);
-  const availableCredits = getAvailableWithdrawalCredits(wallet, sponsoredUnlocked);
+  const availableCredits = wallet.availableCredits;
   const conversionRate = useMemo(
     () => ({
       creditsPerUnit: financeSettings.creditsPerUnit,
@@ -41,13 +46,13 @@ export function WalletDashboard({ adminSponsoredUnlocked, financeSettings, walle
     {
       icon: Users,
       label: "Referral Earnings",
-      meta: "Unlocked anytime",
+      meta: "From referring friends",
       value: formatNaira(creditsToNaira(wallet.referralCredits, conversionRate)),
     },
     {
       icon: Clapperboard,
       label: "Sponsored Tasks Earnings",
-      meta: sponsoredUnlocked ? "Unlocked for payout" : "Locked until admin unlock or third Saturday",
+      meta: "From completing tasks",
       value: formatNaira(creditsToNaira(wallet.sponsoredCredits, conversionRate)),
     },
     {
@@ -67,6 +72,21 @@ export function WalletDashboard({ adminSponsoredUnlocked, financeSettings, walle
   return (
     <>
       <div className="grid gap-4">
+        {withdrawalError ? (
+          <div className="rounded-[5px] border border-red-500/20 bg-red-500/10 p-3 text-red-200 text-xs font-semibold">
+            {withdrawalError === "invalid_amount" && "Enter a valid withdrawal amount."}
+            {withdrawalError === "invalid_bank_name" && "Bank name must be between 2 and 100 characters."}
+            {withdrawalError === "invalid_account_number" && "Account number must be numeric and exactly 10 digits."}
+            {withdrawalError === "invalid_account_name" && "Account name must be between 2 and 100 characters."}
+            {withdrawalError === "insufficient_available_balance" && "You do not have enough available balance for this request."}
+            {!["invalid_amount", "invalid_bank_name", "invalid_account_number", "invalid_account_name", "insufficient_available_balance"].includes(withdrawalError) && decodeURIComponent(withdrawalError)}
+          </div>
+        ) : null}
+        {withdrawalStatus === "requested" ? (
+          <div className="rounded-[5px] border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-200 text-xs font-semibold">
+            Withdrawal request submitted successfully.
+          </div>
+        ) : null}
         <section className="glass-strong p-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -105,10 +125,16 @@ export function WalletDashboard({ adminSponsoredUnlocked, financeSettings, walle
               <ShieldCheck className="mb-3 size-5" />
               Referral earnings are withdrawable at any time.
             </div>
-            <div className={`rounded-[5px] border p-3 ${sponsoredUnlocked ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-50" : "border-white/10 bg-white/[0.045] text-slate-400"}`}>
+            <div className="rounded-[5px] border border-white/10 bg-white/[0.045] p-3 text-slate-300">
               <Lock className="mb-3 size-5" />
-              Sponsored earnings {sponsoredUnlocked ? "are currently unlocked." : "remain locked for now."}
+              Some earnings may be locked according to platform rules.
             </div>
+          </div>
+          
+          <div className="mt-4 flex justify-end">
+             <a href="/wallet/history" className="text-sm font-semibold text-cyan-400 hover:text-cyan-300 underline underline-offset-4">
+               View Transaction & Withdrawal History
+             </a>
           </div>
         </section>
 
@@ -128,19 +154,19 @@ export function WalletDashboard({ adminSponsoredUnlocked, financeSettings, walle
         <form action={requestWithdrawalAction} className="grid gap-3">
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Amount to Withdraw</span>
-            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="amountNaira" placeholder="5000" type="number" />
+            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" min="1" name="amountNaira" placeholder="5000" required type="number" />
           </label>
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Bank Name</span>
-            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="bankName" placeholder="Access Bank" type="text" />
+            <input defaultValue={bankDetails.bankName} className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" maxLength={100} minLength={2} name="bankName" placeholder="Access Bank" required type="text" />
           </label>
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Account Number</span>
-            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="accountNumber" placeholder="0123456789" type="text" />
+            <input defaultValue={bankDetails.accountNumber} className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" maxLength={10} minLength={10} name="accountNumber" pattern="[0-9]{10}" placeholder="0123456789" required type="text" />
           </label>
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Account Name</span>
-            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" name="accountName" placeholder="Amina Kareem" type="text" />
+            <input defaultValue={bankDetails.accountName} className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" maxLength={100} minLength={2} name="accountName" placeholder="Amina Kareem" required type="text" />
           </label>
           <button className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200">
             Submit Request

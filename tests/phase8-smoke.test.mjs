@@ -262,7 +262,8 @@ test("badge admin flow supports editing, safe deletion, and live notification re
   assert.match(notificationComposer, /recipientProfileId/);
   assert.match(notificationActions, /window\.confirm/);
   assert.match(notifications, /profileId: user\.id/);
-  assert.match(bell, /\.channel\(`notifications:\$\{profileId\}`\)/);
+  assert.match(bell, /subscriptionId/);
+  assert.match(bell, /\.channel\(`notifications:\$\{profileId\}:\$\{subscriptionId\}`\)/);
   assert.match(bell, /platform_notifications/);
   assert.match(bell, /notification_reads/);
   assert.match(adminLayout, /profileId=\{notificationData\.profileId/);
@@ -347,4 +348,42 @@ test("hardening migration includes audit, RLS, and storage policies", () => {
   assert.match(moderationHardening, /posts_insert_own_respects_approval/);
   assert.match(moderationHardening, /posts_update_own_pending_only/);
   assert.match(moderationHardening, /post_approval_required/);
+});
+
+test("profile hardening uses shared payout validation, trusted referral logging, and guarded withdrawal RPC", () => {
+  const validation = read("lib/profile-validation.ts");
+  const profileActions = read("app/(app)/profile/actions.ts");
+  const onboardingActions = read("app/onboarding/actions.ts");
+  const walletActions = read("app/(app)/wallet/actions.ts");
+  const referralRoute = read("app/ref/[code]/route.ts");
+  const withdrawalEligibilityMigration = read("db/migrations/0043_withdrawal_eligibility.sql");
+  const migration = read("db/migrations/0044_profile_referral_payout_hardening.sql");
+
+  assert.match(validation, /export const RESERVED_USERNAMES/);
+  assert.match(validation, /export function validatePayoutDetails/);
+  assert.match(validation, /\^\[0-9\]\{10\}\$/);
+  assert.match(profileActions, /validatePayoutDetails/);
+  assert.match(onboardingActions, /validatePayoutDetails/);
+  assert.match(walletActions, /validatePayoutDetails/);
+  assert.match(walletActions, /createClient/);
+  assert.doesNotMatch(walletActions, /createAdminClient/);
+  assert.doesNotMatch(walletActions, /sponsored_unlocked/);
+  assert.match(referralRoute, /createAdminClient/);
+  assert.match(referralRoute, /adminSupabase\.from\("referral_visits"\)/);
+  assert.doesNotMatch(walletActions, /as any/);
+  assert.match(withdrawalEligibilityMigration, /ADD COLUMN IF NOT EXISTS "referral_withdrawals_unlocked"/);
+  assert.match(withdrawalEligibilityMigration, /ADD COLUMN IF NOT EXISTS "watch_time_withdrawals_unlocked"/);
+  assert.match(withdrawalEligibilityMigration, /ADD COLUMN IF NOT EXISTS "admin_credit_withdrawals_unlocked"/);
+  assert.match(withdrawalEligibilityMigration, /ADD COLUMN IF NOT EXISTS "adjustment_withdrawals_unlocked"/);
+  assert.match(migration, /to_regclass\('public\.referral_visits'\)/);
+  assert.match(migration, /DROP POLICY IF EXISTS "referral_visits_insert_public" ON "public"\."referral_visits"/);
+  assert.match(migration, /UPDATE "public"\."profiles"/);
+  assert.match(migration, /SET "bank_name" = NULLIF\(regexp_replace\(btrim\("bank_name"\), '\\s\+', ' ', 'g'\), ''\)/);
+  assert.match(migration, /SET "account_number" = NULLIF\(btrim\("account_number"\), ''\)/);
+  assert.match(migration, /WHERE "account_number" IS NOT NULL[\s\S]*btrim\("account_number"\) !~ '\^\[0-9\]\{10\}\$'/);
+  assert.match(migration, /auth\.uid\(\) IS DISTINCT FROM "request_profile_id"/);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION "private"\."request_withdrawal_atomically"\(uuid, numeric, integer, text, text, text, integer, numeric, numeric, numeric\) TO authenticated/);
+  assert.doesNotMatch(migration, /request_withdrawal_atomically"\(uuid, numeric, integer, text, text, text, integer, numeric, numeric, numeric, boolean\) TO authenticated/);
+  assert.match(migration, /profiles_username_not_reserved/);
+  assert.match(migration, /withdrawals_account_number_nuban/);
 });

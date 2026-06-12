@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { validatePayoutDetails } from "@/lib/profile-validation";
 import { createClient } from "@/lib/supabase/server";
 
 function readRequiredString(formData: FormData, key: string) {
@@ -15,9 +16,11 @@ function readRequiredString(formData: FormData, key: string) {
 
 export async function completeOnboardingAction(formData: FormData) {
   const displayName = readRequiredString(formData, "displayName");
-  const bankName = readRequiredString(formData, "bankName");
-  const accountNumber = readRequiredString(formData, "accountNumber");
-  const accountName = readRequiredString(formData, "accountName");
+  const payoutResult = validatePayoutDetails({
+    accountName: readRequiredString(formData, "accountName"),
+    accountNumber: readRequiredString(formData, "accountNumber"),
+    bankName: readRequiredString(formData, "bankName"),
+  });
   const supabase = await createClient();
   const {
     data: { user },
@@ -26,6 +29,16 @@ export async function completeOnboardingAction(formData: FormData) {
   if (!user) {
     redirect("/");
   }
+
+  if (displayName.trim().length < 2) {
+    redirect("/onboarding?error=invalid_name");
+  }
+
+  if (!payoutResult.ok) {
+    redirect(`/onboarding?error=${payoutResult.code}`);
+  }
+
+  const { accountName, accountNumber, bankName } = payoutResult.value;
 
   const { error } = await supabase
     .from("profiles")

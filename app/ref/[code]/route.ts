@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
@@ -68,14 +69,41 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   });
 
   try {
+    // 1. Prevent self-referrals if the user is logged in
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && user.id === referrerId) {
+      return response;
+    }
+
+    // 2. Prevent self-referrals if client IP matches referrer's latest task session IP
+    if (referrerId) {
+      const { data: lastReferrerSession } = await supabase
+        .from("task_sessions")
+        .select("ip_address")
+        .eq("profile_id", referrerId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastReferrerSession?.ip_address && lastReferrerSession.ip_address === clientIp) {
+        return response;
+      }
+    }
+
     const limit = await checkRateLimit(`referral:${clientIp}:${referralCode}`, 30, 60 * 60 * 1000);
     if (!limit.allowed) {
       return response;
     }
 
-    await supabase.from("referral_visits").insert({
+    if (!hasSupabaseAdminKey()) {
+      return response;
+    }
+
+    const adminSupabase = createAdminClient();
+    await adminSupabase.from("referral_visits").insert({
       referral_code: referralCode,
       referrer_id: referrerId,
+      visitor_profile_id: user?.id ?? null,
       user_agent: request.headers.get("user-agent"),
     });
   } catch {

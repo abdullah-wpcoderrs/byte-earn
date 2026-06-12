@@ -336,7 +336,6 @@ export async function completeInternalVisitTask(sessionId: string) {
   if (task?.provider !== "internal" || task?.task_type !== "visit_url" || task?.status !== "active") {
     throw new Error("Invalid visit task session");
   }
-
   if (session.pending_expires_at && new Date(session.pending_expires_at).getTime() <= Date.now()) {
     throw new Error("This visit session has expired. Please start the task again.");
   }
@@ -409,6 +408,52 @@ export async function completeInternalWatchTask(sessionId: string) {
   const { data, error } = await taskDb.rpc("complete_sponsored_task_session", {
     session_id_param: session.id,
     provider_event_id_param: `internal-watch:${session.id}`,
+    raw_payload_param: JSON.stringify({ elapsedSeconds: Math.floor(elapsedMs / 1000) }),
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/tasks");
+  return { success: true, result: data?.[0] ?? null };
+}
+
+export async function completeInternalShareTask(sessionId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const taskDb = createTrustedTaskClient();
+
+  const { data: session } = await taskDb
+    .from("task_sessions")
+    .select("id, profile_id, status, created_at, pending_expires_at, sponsored_tasks(provider, task_type, status)")
+    .eq("id", sessionId)
+    .eq("profile_id", user.id)
+    .eq("status", "pending")
+    .single();
+
+  if (!session) throw new Error("Share session not found");
+
+  const task = joinedTask(session.sponsored_tasks);
+  if (task?.provider !== "internal" || task?.status !== "active") {
+    throw new Error("Invalid share task session");
+  }
+
+  if (session.pending_expires_at && new Date(session.pending_expires_at).getTime() <= Date.now()) {
+    throw new Error("This share session has expired. Please start the task again.");
+  }
+
+  const elapsedMs = Date.now() - new Date(session.created_at).getTime();
+  if (elapsedMs < 60_000) {
+    throw new Error("Please wait at least 60 seconds before completing this share task");
+  }
+
+  const { data, error } = await taskDb.rpc("complete_sponsored_task_session", {
+    session_id_param: sessionId,
+    provider_event_id_param: `internal-share:${sessionId}`,
     raw_payload_param: JSON.stringify({ elapsedSeconds: Math.floor(elapsedMs / 1000) }),
   });
 

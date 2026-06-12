@@ -5,6 +5,7 @@ import { signOutAction } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 import { ProfilePostTabs } from "@/components/profile/profile-post-tabs";
 import { ProfileBadges } from "@/components/profile/profile-badges";
+import { ReferralList } from "@/components/profile/referral-list";
 import { ReferralShareButton } from "@/components/share/referral-share-button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { getOwnProfileData } from "@/lib/posts";
@@ -12,7 +13,15 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const errorParam = typeof params.error === "string" ? params.error : undefined;
+  const updatedParam = typeof params.updated === "string" ? params.updated : undefined;
+
   const data = await getOwnProfileData();
   const supabase = await createClient();
   const {
@@ -27,6 +36,24 @@ export default async function ProfilePage() {
 
   return (
     <div className="grid gap-4">
+      {errorParam && (
+        <div className="rounded-[5px] border border-red-500/20 bg-red-500/10 p-3 text-red-200 text-xs font-semibold">
+          {errorParam === "invalid_name" && "Display name must be at least 2 characters."}
+          {errorParam === "invalid_username" && "Username must be 3-24 lowercase letters, numbers, or underscores."}
+          {errorParam === "reserved_username" && "This username is reserved and cannot be used."}
+          {errorParam === "invalid_bank_name" && "Bank name must be between 2 and 100 characters."}
+          {errorParam === "invalid_account_number" && "Account number must be numeric and exactly 10 digits."}
+          {errorParam === "invalid_account_name" && "Account name must be between 2 and 100 characters."}
+          {errorParam === "username_taken" && "This username is already taken."}
+          {!["invalid_name", "invalid_username", "reserved_username", "invalid_bank_name", "invalid_account_number", "invalid_account_name", "username_taken"].includes(errorParam) && decodeURIComponent(errorParam)}
+        </div>
+      )}
+      {updatedParam === "profile_saved" && (
+        <div className="rounded-[5px] border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-200 text-xs font-semibold">
+          Profile and payout details saved successfully!
+        </div>
+      )}
+
       <section className="glass-strong p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -67,7 +94,7 @@ export default async function ProfilePage() {
           </summary>
           <div className="mt-4">
             <p className="text-base font-semibold">Edit profile</p>
-            <p className="mt-1 leading-5 text-muted">Update the name shown on your profile and the username shown on posts.</p>
+            <p className="mt-1 leading-5 text-muted">Update your display name, username, and payout details.</p>
           </div>
           <form action={updateOwnProfileAction} className="mt-4 grid gap-3 lg:grid-cols-3">
             <label className="grid gap-2">
@@ -106,6 +133,47 @@ export default async function ProfilePage() {
                 type="text"
               />
             </label>
+
+            <label className="grid gap-2">
+              <span className="font-medium text-slate-200">Bank Name</span>
+              <input
+                className="min-h-9 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+                defaultValue={data.profile.bankName ?? ""}
+                minLength={2}
+                maxLength={100}
+                name="bankName"
+                placeholder="Access Bank"
+                required
+                type="text"
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="font-medium text-slate-200">Account Number</span>
+              <input
+                className="min-h-9 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+                defaultValue={data.profile.accountNumber ?? ""}
+                maxLength={10}
+                minLength={10}
+                name="accountNumber"
+                pattern="[0-9]{10}"
+                placeholder="0123456789"
+                required
+                type="text"
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="font-medium text-slate-200">Account Name</span>
+              <input
+                className="min-h-9 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
+                defaultValue={data.profile.accountName ?? ""}
+                minLength={2}
+                maxLength={100}
+                name="accountName"
+                placeholder="Amina Kareem"
+                required
+                type="text"
+              />
+            </label>
             <div className="flex flex-wrap items-center gap-3 lg:col-span-3">
               <SubmitButton pendingLabel="Saving..." type="submit">
                 Save profile
@@ -140,6 +208,8 @@ export default async function ProfilePage() {
           </div>
         </div>
       </section>
+
+      <ReferralList userId={user.id} />
 
       <ProfilePostTabs pendingPosts={data.pendingPosts} publishedPosts={data.publishedPosts} rejectedPosts={data.rejectedPosts} savedPosts={data.savedPosts} />
     </div>

@@ -5,7 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const errorParam = typeof params.error === "string" ? params.error : undefined;
   const supabase = await createClient();
   const {
     data: { user },
@@ -74,6 +80,15 @@ export default async function OnboardingPage() {
         </aside>
 
         <form action={completeOnboardingAction} className="glass-strong grid gap-3 p-5">
+          {errorParam && (
+            <div className="rounded-[5px] border border-red-500/20 bg-red-500/10 p-3 text-red-200 text-xs font-semibold">
+              {errorParam === "invalid_name" && "Display name must be at least 2 characters."}
+              {errorParam === "invalid_bank_name" && "Bank name must be between 2 and 100 characters."}
+              {errorParam === "invalid_account_number" && "Account number must be numeric and exactly 10 digits."}
+              {errorParam === "invalid_account_name" && "Account name must be between 2 and 100 characters."}
+              {!["invalid_name", "invalid_bank_name", "invalid_account_number", "invalid_account_name"].includes(errorParam) && decodeURIComponent(errorParam)}
+            </div>
+          )}
           <div className="mb-2 flex items-center gap-2 text-cyan-100">
             <Banknote className="size-4" />
             <span className="font-semibold">Payout profile</span>
@@ -95,8 +110,11 @@ export default async function OnboardingPage() {
             <input
               className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
               defaultValue={profile.display_name ?? ""}
+              minLength={2}
+              maxLength={80}
               name="displayName"
               placeholder="Amina Kareem"
+              required
               type="text"
             />
           </label>
@@ -106,8 +124,11 @@ export default async function OnboardingPage() {
             <input
               className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
               defaultValue={profile.bank_name ?? ""}
+              minLength={2}
+              maxLength={100}
               name="bankName"
               placeholder="Access Bank"
+              required
               type="text"
             />
           </label>
@@ -117,8 +138,12 @@ export default async function OnboardingPage() {
             <input
               className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
               defaultValue={profile.account_number ?? ""}
+              maxLength={10}
+              minLength={10}
               name="accountNumber"
+              pattern="[0-9]{10}"
               placeholder="0123456789"
+              required
               type="text"
             />
           </label>
@@ -128,8 +153,11 @@ export default async function OnboardingPage() {
             <input
               className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
               defaultValue={profile.account_name ?? ""}
+              minLength={2}
+              maxLength={100}
               name="accountName"
               placeholder="Amina Kareem"
+              required
               type="text"
             />
           </label>

@@ -1,24 +1,19 @@
 export type WalletBreakdown = {
   referralCredits: number;
   sponsoredCredits: number;
+  watchTimeCredits: number;
+  adminCredits: number;
+  adjustmentCredits: number;
   totalWithdrawnCredits: number;
+  availableCredits: number;
 };
 
-export function isThirdSaturday(date = new Date()) {
-  const dayOfMonth = date.getDate();
-  const isSaturday = date.getDay() === 6;
-
-  return isSaturday && dayOfMonth >= 15 && dayOfMonth <= 21;
-}
-
-export function areSponsoredWithdrawalsUnlocked(adminUnlocked: boolean, date = new Date()) {
-  return adminUnlocked || isThirdSaturday(date);
-}
-
-export function getAvailableWithdrawalCredits(wallet: WalletBreakdown, sponsoredUnlocked: boolean) {
-  return wallet.referralCredits + (sponsoredUnlocked ? wallet.sponsoredCredits : 0);
-}
-
 export function getTotalCredits(wallet: WalletBreakdown) {
-  return wallet.referralCredits + wallet.sponsoredCredits;
+  return (
+    wallet.referralCredits +
+    wallet.sponsoredCredits +
+    wallet.watchTimeCredits +
+    wallet.adminCredits +
+    wallet.adjustmentCredits
+  );
 }

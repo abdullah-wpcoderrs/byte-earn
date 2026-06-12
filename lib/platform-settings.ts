@@ -15,6 +15,10 @@ export type PlatformSettings = {
   post_approval_required: boolean;
   sponsored_tasks_enabled: boolean;
   sponsored_withdrawals_unlocked: boolean;
+  referral_withdrawals_unlocked: boolean;
+  watch_time_withdrawals_unlocked: boolean;
+  admin_credit_withdrawals_unlocked: boolean;
+  adjustment_withdrawals_unlocked: boolean;
   under_construction: boolean;
   updated_at: string;
 };
@@ -31,6 +35,10 @@ export const defaultPlatformSettings: PlatformSettings = {
   post_approval_required: true,
   sponsored_tasks_enabled: false,
   sponsored_withdrawals_unlocked: false,
+  referral_withdrawals_unlocked: true,
+  watch_time_withdrawals_unlocked: false,
+  admin_credit_withdrawals_unlocked: true,
+  adjustment_withdrawals_unlocked: true,
   under_construction: false,
   updated_at: new Date(0).toISOString(),
 };

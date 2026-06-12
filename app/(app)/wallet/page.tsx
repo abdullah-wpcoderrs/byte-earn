@@ -4,12 +4,27 @@ import { getWalletPageData } from "@/lib/wallet-data";
 
 export const dynamic = "force-dynamic";
 
-export default async function WalletPage() {
+export default async function WalletPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const withdrawalError = typeof params.withdrawal_error === "string" ? params.withdrawal_error : undefined;
+  const withdrawalStatus = typeof params.withdrawal === "string" ? params.withdrawal : undefined;
   const data = await getWalletPageData();
 
   if (!data) {
     redirect("/");
   }
 
-  return <WalletDashboard adminSponsoredUnlocked={data.adminSponsoredUnlocked} financeSettings={data.financeSettings} wallet={data.wallet} />;
+  return (
+    <WalletDashboard
+      bankDetails={data.bankDetails}
+      financeSettings={data.financeSettings}
+      wallet={data.wallet}
+      withdrawalError={withdrawalError}
+      withdrawalStatus={withdrawalStatus}
+    />
+  );
 }
