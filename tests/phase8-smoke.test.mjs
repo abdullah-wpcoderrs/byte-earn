@@ -387,3 +387,29 @@ test("profile hardening uses shared payout validation, trusted referral logging,
   assert.match(migration, /profiles_username_not_reserved/);
   assert.match(migration, /withdrawals_account_number_nuban/);
 });
+
+test("username availability checks reject invalid entries and back the live username UI", () => {
+  const validation = read("lib/profile-validation.ts");
+  const authActions = read("app/auth/actions.ts");
+  const profileActions = read("app/(app)/profile/actions.ts");
+  const authPage = read("app/page.tsx");
+  const profilePage = read("app/(app)/profile/page.tsx");
+  const route = read("app/api/username-availability/route.ts");
+
+  const reservedMatch = validation.match(/export const RESERVED_USERNAMES = new Set\(\[(?<body>[\s\S]*?)\]\);/);
+  assert.ok(reservedMatch?.groups?.body, "RESERVED_USERNAMES block should be present");
+  const reservedUsernames = [...reservedMatch.groups.body.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+
+  reservedUsernames.forEach((username) => {
+    assert.match(username, /^[a-z0-9_]{3,24}$/);
+  });
+
+  assert.ok(validation.includes("export const USERNAME_PATTERN = /^[a-z0-9_]{3,24}$/;"));
+  assert.match(authActions, /createAdminClient/);
+  assert.match(profileActions, /createAdminClient/);
+  assert.match(authPage, /UsernameField/);
+  assert.match(profilePage, /UsernameField/);
+  assert.match(route, /createAdminClient/);
+  assert.match(route, /username_taken/);
+  assert.match(route, /reserved_username/);
+});

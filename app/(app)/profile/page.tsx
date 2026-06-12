@@ -7,6 +7,7 @@ import { ProfilePostTabs } from "@/components/profile/profile-post-tabs";
 import { ProfileBadges } from "@/components/profile/profile-badges";
 import { ReferralList } from "@/components/profile/referral-list";
 import { ReferralShareButton } from "@/components/share/referral-share-button";
+import { UsernameField } from "@/components/forms/username-field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { getOwnProfileData } from "@/lib/posts";
 import { createClient } from "@/lib/supabase/server";
@@ -119,20 +120,13 @@ export default async function ProfilePage({
                 type="text"
               />
             </label>
-            <label className="grid gap-2">
-              <span className="font-medium text-slate-200">Username</span>
-              <input
-                className="min-h-9 rounded-[5px] border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
-                defaultValue={data.profile.username ?? ""}
-                maxLength={24}
-                name="username"
-                pattern="[a-z0-9_]{3,24}"
-                placeholder="amina_kareem"
-                required
-                spellCheck={false}
-                type="text"
-              />
-            </label>
+            <UsernameField
+              currentValue={data.profile.username}
+              defaultValue={data.profile.username ?? ""}
+              label="Username"
+              name="username"
+              placeholder="amina_kareem"
+            />
 
             <label className="grid gap-2">
               <span className="font-medium text-slate-200">Bank Name</span>

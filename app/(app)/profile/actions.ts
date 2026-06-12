@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { validatePayoutDetails, validateUsername } from "@/lib/profile-validation";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function readRequiredString(formData: FormData, key: string) {
@@ -50,6 +51,21 @@ export async function updateOwnProfileAction(formData: FormData) {
 
   const username = usernameResult.value;
   const { accountName, accountNumber, bankName } = payoutResult.value;
+  const adminSupabase = createAdminClient();
+  const { data: existingUsername, error: existingUsernameError } = await adminSupabase
+    .from("profiles")
+    .select("id")
+    .eq("username", username)
+    .neq("id", user.id)
+    .maybeSingle();
+
+  if (existingUsernameError) {
+    redirect(`/profile?error=${encodeURIComponent(existingUsernameError.message)}`);
+  }
+
+  if (existingUsername) {
+    redirect("/profile?error=username_taken");
+  }
 
   const { error } = await supabase
     .from("profiles")

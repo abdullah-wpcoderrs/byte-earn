@@ -17,6 +17,7 @@ import {
 import { useMemo, useState } from "react";
 import { signInAction, signUpAction } from "@/app/auth/actions";
 import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
+import { UsernameField } from "@/components/forms/username-field";
 
 const activationSteps = [
   "Pay one-time access fee",
@@ -133,19 +134,7 @@ export default function AuthGatewayPage() {
                         type="text"
                       />
                     </label>
-                    <label className="grid gap-2">
-                      <span className="font-medium text-slate-200">Username</span>
-                      <input
-                        className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
-                        maxLength={24}
-                        name="username"
-                        pattern="[a-z0-9_]{3,24}"
-                        placeholder="amina_kareem"
-                        required
-                        spellCheck={false}
-                        type="text"
-                      />
-                    </label>
+                    <UsernameField label="Username" name="username" placeholder="amina_kareem" />
                   </>
                 ) : null}
 

@@ -7,6 +7,7 @@ import { validateUsername } from "@/lib/profile-validation";
 import { isPaystackActivationEnabled } from "@/lib/config/payments";
 import { assertRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createUniqueReferralCode } from "@/lib/referrals";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function readRequiredString(formData: FormData, key: string) {
@@ -57,8 +58,9 @@ export async function signUpAction(formData: FormData) {
     typeof referralCodeInput === "string" && referralCodeInput.trim().length > 0
       ? referralCodeInput.trim().toUpperCase()
       : cookieReferralCode?.trim().toUpperCase() ?? "";
+  const adminSupabase = createAdminClient();
   const supabase = await createClient();
-  const { data: existingUsername, error: existingUsernameError } = await supabase
+  const { data: existingUsername, error: existingUsernameError } = await adminSupabase
     .from("profiles")
     .select("id")
     .eq("username", username)
@@ -89,7 +91,7 @@ export async function signUpAction(formData: FormData) {
 
   const referralCode = await createUniqueReferralCode();
   const { data: referrer, error: referrerError } = providedReferralCode
-    ? await supabase.from("profiles").select("id").eq("referral_code", providedReferralCode).maybeSingle()
+    ? await adminSupabase.from("profiles").select("id").eq("referral_code", providedReferralCode).maybeSingle()
     : { data: null, error: null };
 
   if (referrerError) {

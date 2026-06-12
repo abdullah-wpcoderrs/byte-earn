@@ -13,7 +13,6 @@ CHECK (
       'feed',
       'tasks',
       'profile',
-      'u',
       'ref',
       'auth',
       'api',

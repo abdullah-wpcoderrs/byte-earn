@@ -1,6 +1,19 @@
 import { CheckCircle2, Clock, Users, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 
+type ReferralProfile = {
+  display_name: string | null;
+  username: string | null;
+};
+
+type ReferralRow = {
+  created_at: string;
+  id: string;
+  referredProfile: ReferralProfile | ReferralProfile[] | null;
+  rejection_reason: string | null;
+  status: "pending" | "onboarding" | "qualified" | "rejected";
+};
+
 export async function ReferralList({ userId }: { userId: string }) {
   const supabase = await createClient();
   const { data: referrals, error } = await supabase
@@ -38,7 +51,7 @@ export async function ReferralList({ userId }: { userId: string }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {referrals.map((referral: any) => {
+              {referrals.map((referral: ReferralRow) => {
                 const profile = Array.isArray(referral.referredProfile) ? referral.referredProfile[0] : referral.referredProfile;
                 const displayName = profile?.display_name || profile?.username || "Unknown User";
 
