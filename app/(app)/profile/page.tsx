@@ -9,7 +9,11 @@ import { ReferralList } from "@/components/profile/referral-list";
 import { ReferralShareButton } from "@/components/share/referral-share-button";
 import { UsernameField } from "@/components/forms/username-field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { formatNaira } from "@/lib/money";
 import { getOwnProfileData } from "@/lib/posts";
+import { getReferralProgramSummary } from "@/lib/referral-summary";
+import { getRequestOrigin } from "@/lib/request-origin";
+import { buildReferralUrl } from "@/lib/share";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +37,10 @@ export default async function ProfilePage({
     redirect("/");
   }
 
-  const referralUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://appdomain.com"}/ref/${data.profile.referralCode}`;
+  const [referralUrl, referralSummary] = await Promise.all([
+    buildReferralUrl(data.profile.referralCode, await getRequestOrigin()),
+    getReferralProgramSummary(user.id),
+  ]);
 
   return (
     <div className="grid gap-4">
@@ -179,6 +186,18 @@ export default async function ProfilePage({
       </section>
 
       <section className="glass-strong p-4">
+        <div className="mb-4 grid gap-3 md:grid-cols-4">
+          <ProfileInfoCard
+            label="Referral bonus"
+            value={`${referralSummary.referralBonusCredits.toLocaleString("en-US")} credits (${formatNaira(referralSummary.referralBonusNaira)})`}
+          />
+          <ProfileInfoCard label="Qualified" value={referralSummary.stats.qualifiedCount.toLocaleString("en-US")} />
+          <ProfileInfoCard label="Pending" value={referralSummary.stats.pendingCount.toLocaleString("en-US")} />
+          <ProfileInfoCard
+            label="Referral earned"
+            value={`${referralSummary.rewardCreditsTotal.toLocaleString("en-US")} credits (${formatNaira(referralSummary.rewardCreditsTotalNaira)})`}
+          />
+        </div>
         <div className="mt-5 grid gap-2 md:grid-cols-[1fr_auto] md:items-center">
           <div className="rounded-[5px] border border-white/10 bg-white/[0.045] p-3">
             <div className="mb-2 flex items-center gap-2 text-cyan-100">
@@ -186,6 +205,9 @@ export default async function ProfilePage({
               <span className="font-semibold">Referral URL</span>
             </div>
             <p className="break-all text-slate-300">{referralUrl}</p>
+            <p className="mt-2 text-slate-400">
+              {referralSummary.stats.visitCount.toLocaleString("en-US")} visits - {referralSummary.stats.rejectedCount.toLocaleString("en-US")} rejected - ledger total {referralSummary.referralLedgerCredits.toLocaleString("en-US")} credits
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-2 md:flex">
             <ReferralShareButton

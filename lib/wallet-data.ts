@@ -3,7 +3,13 @@ import "server-only";
 import { getActiveFinanceSettings } from "@/lib/finance-settings";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { createClient } from "@/lib/supabase/server";
-import type { WalletBreakdown } from "@/lib/wallet";
+import {
+  buildWalletSourceBreakdown,
+  getAvailableCredits,
+  getLockedCredits,
+  getWithdrawalStatusBreakdown,
+  type WalletBreakdown,
+} from "@/lib/wallet";
 
 type LedgerRow = {
   credits: number;
@@ -58,25 +64,28 @@ export async function getWalletPageData() {
       adjustmentCredits: 0,
       totalWithdrawnCredits: 0,
       availableCredits: 0,
+      lockedCredits: 0,
+      reservedWithdrawalCredits: 0,
+      sourceBreakdown: [],
+      withdrawalStatusBreakdown: {
+        approvedCredits: 0,
+        paidCredits: 0,
+        pendingCredits: 0,
+        rejectedCredits: 0,
+        reservedCredits: 0,
+      },
     },
   );
 
-  wallet.totalWithdrawnCredits = ((withdrawalResult.data ?? []) as WithdrawalRow[])
-    .filter((row) => row.status === "paid")
-    .reduce((total, row) => total + row.amount_credits, 0);
+  const withdrawals = (withdrawalResult.data ?? []) as WithdrawalRow[];
+  const withdrawalStatusBreakdown = getWithdrawalStatusBreakdown(withdrawals);
 
-  const pendingOrPaidCredits = ((withdrawalResult.data ?? []) as WithdrawalRow[])
-    .filter((row) => row.status === "pending" || row.status === "approved" || row.status === "paid")
-    .reduce((total, row) => total + row.amount_credits, 0);
-
-  const unlockedGross = 
-    (settings.referral_withdrawals_unlocked ? wallet.referralCredits : 0) +
-    (settings.sponsored_withdrawals_unlocked ? wallet.sponsoredCredits : 0) +
-    (settings.watch_time_withdrawals_unlocked ? wallet.watchTimeCredits : 0) +
-    (settings.admin_credit_withdrawals_unlocked ? wallet.adminCredits : 0) +
-    (settings.adjustment_withdrawals_unlocked ? wallet.adjustmentCredits : 0);
-
-  wallet.availableCredits = Math.max(0, unlockedGross - pendingOrPaidCredits);
+  wallet.withdrawalStatusBreakdown = withdrawalStatusBreakdown;
+  wallet.totalWithdrawnCredits = withdrawalStatusBreakdown.paidCredits;
+  wallet.reservedWithdrawalCredits = withdrawalStatusBreakdown.reservedCredits;
+  wallet.sourceBreakdown = buildWalletSourceBreakdown(wallet, settings);
+  wallet.lockedCredits = getLockedCredits(wallet, settings);
+  wallet.availableCredits = getAvailableCredits(wallet, settings, withdrawalStatusBreakdown);
 
   return {
     financeSettings,

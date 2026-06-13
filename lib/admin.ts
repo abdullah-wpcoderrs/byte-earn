@@ -31,6 +31,7 @@ export type AdminNotificationRow = Awaited<ReturnType<typeof getAdminNotificatio
 export type AuditLogRow = Awaited<ReturnType<typeof getAuditLogRows>>[number];
 export type PlatformReadinessCheck = Awaited<ReturnType<typeof getPlatformReadiness>>["checks"][number];
 export type AdminNotificationRecipientOption = Awaited<ReturnType<typeof getAdminNotificationRecipients>>[number];
+export type BackendDiagnostics = Awaited<ReturnType<typeof getBackendDiagnostics>>;
 
 type AssignedBadgeRow = {
   badge_id: string;
@@ -645,6 +646,128 @@ export async function getPlatformReadiness() {
     checks,
     readyCount: checks.filter((item) => item.ready).length,
     totalCount: checks.length,
+  };
+}
+
+export async function getBackendDiagnostics() {
+  await requireAdmin();
+  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
+
+  const [
+    profilesResult,
+    ledgerResult,
+    referralResult,
+    taskResult,
+    sessionResult,
+    providerEventResult,
+    withdrawalResult,
+  ] = await Promise.all([
+    supabase.from("profiles").select("id, referral_count, credits_balance").limit(10000),
+    supabase.from("credit_ledger").select("profile_id, credits").limit(50000),
+    supabase.from("referral_attributions").select("referrer_id, status").limit(50000),
+    supabase.from("sponsored_tasks").select("id, status, reward_credits, completions_count").limit(10000),
+    supabase.from("task_sessions").select("task_id, status, reward_credits").limit(50000),
+    supabase.from("sponsored_task_provider_events").select("reported_clicks, reported_impressions, reported_revenue, processed_at, status").limit(50000),
+    supabase.from("withdrawals").select("status, amount_credits").limit(50000),
+  ]);
+
+  for (const result of [profilesResult, ledgerResult, referralResult, taskResult, sessionResult, providerEventResult, withdrawalResult]) {
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+  }
+
+  const ledgerByProfile = new Map<string, number>();
+  (ledgerResult.data ?? []).forEach((row) => {
+    ledgerByProfile.set(row.profile_id, (ledgerByProfile.get(row.profile_id) ?? 0) + Number(row.credits ?? 0));
+  });
+
+  const qualifiedReferralsByProfile = new Map<string, number>();
+  (referralResult.data ?? []).forEach((row) => {
+    if (row.status === "qualified" && row.referrer_id) {
+      qualifiedReferralsByProfile.set(row.referrer_id, (qualifiedReferralsByProfile.get(row.referrer_id) ?? 0) + 1);
+    }
+  });
+
+  const completedSessionsByTask = new Map<string, number>();
+  const taskSessionCounts = { completed: 0, pending: 0, rejected: 0, suspicious: 0 };
+  let totalCompletedTaskRewardCredits = 0;
+  (sessionResult.data ?? []).forEach((row) => {
+    if (row.status in taskSessionCounts) {
+      taskSessionCounts[row.status as keyof typeof taskSessionCounts] += 1;
+    }
+    if (row.status === "completed") {
+      completedSessionsByTask.set(row.task_id, (completedSessionsByTask.get(row.task_id) ?? 0) + 1);
+      totalCompletedTaskRewardCredits += Number(row.reward_credits ?? 0);
+    }
+  });
+
+  const creditBalanceMismatches = (profilesResult.data ?? [])
+    .map((profile) => ({
+      actualCredits: Number(profile.credits_balance ?? 0),
+      expectedCredits: ledgerByProfile.get(profile.id) ?? 0,
+      profileId: profile.id,
+    }))
+    .filter((row) => row.actualCredits !== row.expectedCredits);
+
+  const referralCountMismatches = (profilesResult.data ?? [])
+    .map((profile) => ({
+      actualCount: Number(profile.referral_count ?? 0),
+      expectedCount: qualifiedReferralsByProfile.get(profile.id) ?? 0,
+      profileId: profile.id,
+    }))
+    .filter((row) => row.actualCount !== row.expectedCount);
+
+  const taskCompletionMismatches = (taskResult.data ?? [])
+    .map((task) => ({
+      actualCount: Number(task.completions_count ?? 0),
+      expectedCount: completedSessionsByTask.get(task.id) ?? 0,
+      taskId: task.id,
+    }))
+    .filter((row) => row.actualCount !== row.expectedCount);
+
+  const activeTasks = (taskResult.data ?? []).filter((task) => task.status === "active");
+  const withdrawalTotals = (withdrawalResult.data ?? []).reduce(
+    (current, row) => {
+      const amount = Number(row.amount_credits ?? 0);
+      if (row.status === "pending") current.pendingCredits += amount;
+      if (row.status === "approved") current.approvedCredits += amount;
+      if (row.status === "paid") current.paidCredits += amount;
+      if (row.status === "rejected") current.rejectedCredits += amount;
+      return current;
+    },
+    { approvedCredits: 0, paidCredits: 0, pendingCredits: 0, rejectedCredits: 0 },
+  );
+
+  const providerTotals = (providerEventResult.data ?? []).reduce(
+    (current, row) => {
+      current.clicks += Number(row.reported_clicks ?? 0);
+      current.impressions += Number(row.reported_impressions ?? 0);
+      current.revenue += Number(row.reported_revenue ?? 0);
+      if (row.processed_at) current.processedEvents += 1;
+      else current.unprocessedEvents += 1;
+      return current;
+    },
+    { clicks: 0, impressions: 0, processedEvents: 0, revenue: 0, unprocessedEvents: 0 },
+  );
+
+  return {
+    consistency: {
+      creditBalanceMismatches,
+      referralCountMismatches,
+      taskCompletionMismatches,
+    },
+    providerTotals,
+    sponsoredTaskTotals: {
+      activeTaskCount: activeTasks.length,
+      completedSessions: taskSessionCounts.completed,
+      pendingSessions: taskSessionCounts.pending,
+      rejectedSessions: taskSessionCounts.rejected,
+      suspiciousSessions: taskSessionCounts.suspicious,
+      totalActiveTaskRewardCredits: activeTasks.reduce((total, task) => total + Number(task.reward_credits ?? 0), 0),
+      totalCompletedTaskRewardCredits,
+    },
+    withdrawalTotals,
   };
 }
 

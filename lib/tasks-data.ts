@@ -30,6 +30,24 @@ export type TaskSessionSummary = {
   latestPendingSessionId: string | null;
 };
 
+export type UserTaskBackendSummary = {
+  activeTaskCount: number;
+  completedToday: number;
+  lifetimeCompleted: number;
+  lifetimeSponsoredCredits: number;
+  pending: number;
+  rejectedToday: number;
+  suspicious: number;
+  totalAvailableTaskCredits: number;
+};
+
+export type UserVisibleRewardRule = {
+  action: string;
+  credits: number;
+  enabled: boolean;
+  label: string;
+};
+
 export async function getActiveTasks() {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -117,4 +135,77 @@ export async function getUserTaskSessionSummary(profileId: string) {
   }
 
   return summary;
+}
+
+export async function getUserTaskBackendSummary(profileId: string, tasks: SponsoredTask[]) {
+  const supabase = await createClient();
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("task_sessions")
+    .select("status, completed_at, created_at, reward_credits")
+    .eq("profile_id", profileId);
+
+  if (error) {
+    console.error("Error fetching task backend summary:", error);
+    return {
+      activeTaskCount: tasks.length,
+      completedToday: 0,
+      lifetimeCompleted: 0,
+      lifetimeSponsoredCredits: 0,
+      pending: 0,
+      rejectedToday: 0,
+      suspicious: 0,
+      totalAvailableTaskCredits: tasks.reduce((total, task) => total + task.rewardCredits, 0),
+    } satisfies UserTaskBackendSummary;
+  }
+
+  return (data ?? []).reduce<UserTaskBackendSummary>(
+    (current, session) => {
+      if (session.status === "pending") current.pending += 1;
+      if (session.status === "suspicious") current.suspicious += 1;
+      if (session.status === "rejected" && new Date(session.created_at) >= today) current.rejectedToday += 1;
+      if (session.status === "completed") {
+        current.lifetimeCompleted += 1;
+        current.lifetimeSponsoredCredits += session.reward_credits ?? 0;
+        if (session.completed_at && new Date(session.completed_at) >= today) {
+          current.completedToday += 1;
+        }
+      }
+      return current;
+    },
+    {
+      activeTaskCount: tasks.length,
+      completedToday: 0,
+      lifetimeCompleted: 0,
+      lifetimeSponsoredCredits: 0,
+      pending: 0,
+      rejectedToday: 0,
+      suspicious: 0,
+      totalAvailableTaskCredits: tasks.reduce((total, task) => total + task.rewardCredits, 0),
+    },
+  );
+}
+
+export async function getUserVisibleRewardRules() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("reward_rules")
+    .select("action, label, credits, enabled")
+    .in("action", ["referral_qualified", "sponsored_task_milestone", "watch_time_milestone"])
+    .order("action", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching visible reward rules:", error);
+    return [] satisfies UserVisibleRewardRule[];
+  }
+
+  return (data ?? []).map((rule) => ({
+    action: rule.action,
+    credits: rule.enabled ? rule.credits : 0,
+    enabled: rule.enabled,
+    label: rule.label,
+  })) satisfies UserVisibleRewardRule[];
 }

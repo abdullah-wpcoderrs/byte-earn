@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
+const walletHelpers = await import("../lib/wallet.ts");
+const moneyHelpers = await import("../lib/money.ts");
+
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
@@ -29,13 +32,118 @@ test("payment routes are server-priced, rate-limited, and audited", () => {
 
 test("wallet and moderation mutations have audit and transition guards", () => {
   const wallet = read("app/(app)/wallet/actions.ts");
+  const walletDashboard = read("components/wallet/wallet-dashboard.tsx");
   const adminActions = read("app/admin/actions.ts");
+  const walletMath = read("lib/wallet.ts");
 
   assert.match(wallet, /wallet:withdrawal/);
   assert.match(wallet, /withdrawal\.requested/);
+  assert.match(wallet, /validatePayoutDetails/);
+  assert.match(wallet, /getAvailableCredits/);
+  assert.match(walletDashboard, /Update payout profile/);
+  assert.match(walletDashboard, /max=\{maxWithdrawalNaira \|\| 1\}/);
+  assert.match(walletMath, /getWithdrawalStatusBreakdown/);
+  assert.match(walletMath, /getReservedOrPaidWithdrawalCredits/);
+  assert.match(walletMath, /getUnlockedGrossCredits/);
   assert.match(adminActions, /invalid_transition/);
   assert.match(adminActions, /admin\.withdrawal/);
   assert.match(adminActions, /admin\.post/);
+});
+
+test("wallet availability math accounts for locked, reserved, paid, and rejected credits", () => {
+  const wallet = {
+    adjustmentCredits: 100,
+    adminCredits: 300,
+    referralCredits: 1_000,
+    sponsoredCredits: 500,
+    watchTimeCredits: 200,
+  };
+  const allUnlocked = {
+    adjustment_withdrawals_unlocked: true,
+    admin_credit_withdrawals_unlocked: true,
+    referral_withdrawals_unlocked: true,
+    sponsored_withdrawals_unlocked: true,
+    watch_time_withdrawals_unlocked: true,
+  };
+  const mixedUnlocks = {
+    ...allUnlocked,
+    sponsored_withdrawals_unlocked: false,
+    watch_time_withdrawals_unlocked: false,
+  };
+
+  assert.equal(walletHelpers.getTotalCredits({ ...wallet }), 2_100);
+  assert.equal(walletHelpers.getUnlockedGrossCredits(wallet, allUnlocked), 2_100);
+  assert.equal(walletHelpers.getAvailableCredits(wallet, allUnlocked, walletHelpers.getWithdrawalStatusBreakdown([])), 2_100);
+  assert.equal(walletHelpers.getLockedCredits(wallet, mixedUnlocks), 700);
+  assert.equal(walletHelpers.getUnlockedGrossCredits(wallet, mixedUnlocks), 1_400);
+
+  assert.equal(
+    walletHelpers.getAvailableCredits(wallet, allUnlocked, walletHelpers.getWithdrawalStatusBreakdown([{ amount_credits: 250, status: "paid" }])),
+    1_850,
+  );
+  assert.equal(walletHelpers.getTotalCredits({ ...wallet }), 2_100);
+  assert.equal(
+    walletHelpers.getAvailableCredits(wallet, allUnlocked, walletHelpers.getWithdrawalStatusBreakdown([{ amount_credits: 300, status: "pending" }])),
+    1_800,
+  );
+  assert.equal(
+    walletHelpers.getAvailableCredits(wallet, allUnlocked, walletHelpers.getWithdrawalStatusBreakdown([{ amount_credits: 400, status: "approved" }])),
+    1_700,
+  );
+  assert.equal(
+    walletHelpers.getAvailableCredits(wallet, allUnlocked, walletHelpers.getWithdrawalStatusBreakdown([{ amount_credits: 400, status: "rejected" }])),
+    2_100,
+  );
+  assert.equal(
+    walletHelpers.getAvailableCredits(
+      wallet,
+      mixedUnlocks,
+      walletHelpers.getWithdrawalStatusBreakdown([
+        { amount_credits: 200, status: "pending" },
+        { amount_credits: 150, status: "approved" },
+        { amount_credits: 50, status: "paid" },
+        { amount_credits: 999, status: "rejected" },
+      ]),
+    ),
+    1_000,
+  );
+});
+
+test("wallet withdrawal requests use database-authoritative availability and active conversion", () => {
+  const walletActions = read("app/(app)/wallet/actions.ts");
+  const walletMath = read("lib/wallet.ts");
+  const profileHardeningMigration = read("db/migrations/0044_profile_referral_payout_hardening.sql");
+  const rate = { creditsPerUnit: 100, ngnPerUsd: 1000, usdPerUnit: 0.5 };
+
+  assert.equal(moneyHelpers.creditsToNaira(100, rate), 500);
+  assert.equal(moneyHelpers.nairaToCredits(750, rate), 150);
+  assert.match(walletActions, /getAvailableCredits\(wallet, settings, withdrawalStatusBreakdown\)/);
+  assert.match(walletActions, /Math\.ceil\(nairaToCredits\(amountNaira, financeSettings\)\)/);
+  assert.match(walletActions, /requestedCredits > availableCredits/);
+  assert.match(walletActions, /request_withdrawal_atomically/);
+  assert.match(walletMath, /Math\.max\(0, getUnlockedGrossCredits\(wallet, settings\) - getReservedOrPaidWithdrawalCredits/);
+  assert.match(profileHardeningMigration, /auth\.uid\(\) IS DISTINCT FROM "request_profile_id"/);
+  assert.match(profileHardeningMigration, /available_credits/);
+  assert.match(profileHardeningMigration, /insufficient_available_balance/);
+});
+
+test("mobile sheets and wallet history have responsive structural coverage", () => {
+  const sheet = read("components/ui/sheet.tsx");
+  const walletHistory = read("app/(app)/wallet/history/page.tsx");
+
+  assert.match(sheet, /createPortal/);
+  assert.match(sheet, /document\.body/);
+  assert.match(sheet, /fixed inset-0/);
+  assert.match(sheet, /aria-modal="true"/);
+  assert.match(sheet, /role="dialog"/);
+  assert.match(sheet, /env\(safe-area-inset-bottom\)/);
+  assert.match(sheet, /app-scrollbar/);
+  assert.match(sheet, /onClick=\{onClose\}/);
+  assert.match(sheet, /stopPropagation/);
+  assert.match(walletHistory, /md:hidden/);
+  assert.match(walletHistory, /md:block/);
+  assert.match(walletHistory, /WithdrawalStatusBadge/);
+  assert.match(walletHistory, /break-words/);
 });
 
 test("referral tracking and admin actions have rate limits", () => {
@@ -50,6 +158,8 @@ test("referral tracking and admin actions have rate limits", () => {
 test("referral rewards are qualified server-side and idempotently", () => {
   const migration = read("db/migrations/0011_referral_rewards.sql");
   const authActions = read("app/auth/actions.ts");
+  const referralSummary = read("lib/referral-summary.ts");
+  const referralList = read("components/profile/referral-list.tsx");
 
   assert.match(migration, /CREATE TABLE IF NOT EXISTS "reward_rules"/);
   assert.match(migration, /'referral_qualified'/);
@@ -60,6 +170,32 @@ test("referral rewards are qualified server-side and idempotently", () => {
   assert.match(migration, /"credit_ledger"/);
   assert.match(migration, /AFTER UPDATE OF "status" ON "public"\."profiles"/);
   assert.match(authActions, /referrer\?\.id && referrer\.id !== data\.user\.id/);
+  assert.match(referralSummary, /rewardRule\?\.enabled === false \? 0/);
+  assert.match(referralSummary, /qualifiedCount/);
+  assert.match(referralSummary, /referralLedgerCredits/);
+  assert.match(referralList, /reward_credits/);
+  assert.match(referralList, /qualified_at/);
+  assert.match(referralList, /Pending qualification/);
+});
+
+test("referral URLs use hosted origins and share captions", () => {
+  const share = read("lib/share.ts");
+  const profile = read("app/(app)/profile/page.tsx");
+  const onboarding = read("app/onboarding/page.tsx");
+  const requestOrigin = read("lib/request-origin.ts");
+
+  assert.doesNotMatch(share, /appdomain\.com/);
+  assert.match(share, /NEXT_PUBLIC_APP_URL/);
+  assert.match(share, /window\.location\.origin/);
+  assert.match(share, /buildReferralUrl\(referralCode/);
+  assert.match(share, /buildShareCaption/);
+  assert.match(profile, /getRequestOrigin/);
+  assert.match(onboarding, /getRequestOrigin/);
+  assert.match(requestOrigin, /new URL\(process\.env\.NEXT_PUBLIC_APP_URL\)\.origin/);
+  assert.match(requestOrigin, /ALLOWED_APP_HOSTS/);
+  assert.match(requestOrigin, /normalizeForwardedHost/);
+  assert.match(requestOrigin, /x-forwarded-host/);
+  assert.doesNotMatch(requestOrigin, /x-forwarded-proto/);
 });
 
 test("finance settings drive server-side credit conversion", () => {
@@ -95,8 +231,14 @@ test("sponsored task page loads provider tasks and pending session state", () =>
   const taskDetail = read("app/(app)/tasks/[id]/page.tsx");
 
   assert.match(tasksPage, /getActiveTasks/);
+  assert.match(tasksPage, /getUserTaskBackendSummary/);
+  assert.match(tasksPage, /getUserVisibleRewardRules/);
+  assert.match(tasksPage, /Active tasks/);
+  assert.match(tasksPage, /Reward rules/);
   assert.match(tasksPage, /getUserTaskSessionSummary/);
   assert.match(tasksData, /getUserTaskSessionSummary/);
+  assert.match(tasksData, /lifetimeSponsoredCredits/);
+  assert.match(tasksData, /totalAvailableTaskCredits/);
   assert.match(tasksData, /latestPendingSessionId/);
   assert.match(taskEngine, /Pending verification/);
   assert.match(taskEngine, /router\.refresh/);
@@ -211,8 +353,14 @@ test("platform tools expose readiness checks and queued email delivery", () => {
   const migration = read("db/migrations/0042_platform_phase123_readiness_and_email_queue.sql");
 
   assert.match(platform, /Platform readiness/);
+  assert.match(platform, /Backend diagnostics/);
   assert.match(platform, /PlatformComposerTools/);
   assert.match(admin, /getPlatformReadiness/);
+  assert.match(admin, /getBackendDiagnostics/);
+  assert.match(admin, /creditBalanceMismatches/);
+  assert.match(admin, /referralCountMismatches/);
+  assert.match(admin, /taskCompletionMismatches/);
+  assert.match(admin, /providerTotals/);
   assert.match(admin, /badge-images/);
   assert.match(emailActions, /admin\.email_blast\.queued/);
   assert.match(emailActions, /sendPreviewEmailBlastAction/);

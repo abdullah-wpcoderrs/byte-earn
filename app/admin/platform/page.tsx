@@ -4,7 +4,7 @@ import { NotificationHistoryActions } from "./notification-history-actions";
 import { PlatformComposerTools } from "./platform-composer-tools";
 import { TextInput } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { getAdminNotificationRecipients, getAdminNotifications, getOrCreatePlatformSettings, getPlatformReadiness } from "@/lib/admin";
+import { getAdminNotificationRecipients, getAdminNotifications, getBackendDiagnostics, getOrCreatePlatformSettings, getPlatformReadiness } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +16,12 @@ type ImpactRow = {
 };
 
 export default async function AdminPlatformPage() {
-  const [settings, notifications, readiness, recipients] = await Promise.all([
+  const [settings, notifications, readiness, recipients, diagnostics] = await Promise.all([
     getOrCreatePlatformSettings(),
     getAdminNotifications(),
     getPlatformReadiness(),
     getAdminNotificationRecipients(),
+    getBackendDiagnostics(),
   ]);
   const impactRows: ImpactRow[] = [
     {
@@ -145,6 +146,44 @@ export default async function AdminPlatformPage() {
         </div>
       </section>
 
+      <section className="glass overflow-hidden">
+        <div className="border-b border-white/10 p-4">
+          <h2 className="text-base font-semibold">Backend diagnostics</h2>
+          <p className="mt-1 text-muted">Aggregate task, provider, withdrawal, and accounting consistency checks.</p>
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+          <DiagnosticStat label="Active tasks" value={diagnostics.sponsoredTaskTotals.activeTaskCount} />
+          <DiagnosticStat label="Task credits available" value={diagnostics.sponsoredTaskTotals.totalActiveTaskRewardCredits} />
+          <DiagnosticStat label="Completed sessions" value={diagnostics.sponsoredTaskTotals.completedSessions} />
+          <DiagnosticStat label="Pending sessions" value={diagnostics.sponsoredTaskTotals.pendingSessions} />
+          <DiagnosticStat label="Suspicious sessions" value={diagnostics.sponsoredTaskTotals.suspiciousSessions} />
+          <DiagnosticStat label="Rejected sessions" value={diagnostics.sponsoredTaskTotals.rejectedSessions} />
+          <DiagnosticStat label="Provider clicks" value={diagnostics.providerTotals.clicks} />
+          <DiagnosticStat label="Provider impressions" value={diagnostics.providerTotals.impressions} />
+          <DiagnosticStat label="Provider revenue" value={diagnostics.providerTotals.revenue.toFixed(4)} />
+          <DiagnosticStat label="Processed events" value={diagnostics.providerTotals.processedEvents} />
+          <DiagnosticStat label="Unprocessed events" value={diagnostics.providerTotals.unprocessedEvents} />
+          <DiagnosticStat label="Pending withdrawal credits" value={diagnostics.withdrawalTotals.pendingCredits} />
+        </div>
+        <div className="grid gap-3 border-t border-white/10 p-4 lg:grid-cols-3">
+          <ConsistencyPanel
+            count={diagnostics.consistency.creditBalanceMismatches.length}
+            detail="profiles.credits_balance vs summed credit_ledger"
+            label="Credit balance mismatches"
+          />
+          <ConsistencyPanel
+            count={diagnostics.consistency.referralCountMismatches.length}
+            detail="profiles.referral_count vs qualified referral_attributions"
+            label="Referral count mismatches"
+          />
+          <ConsistencyPanel
+            count={diagnostics.consistency.taskCompletionMismatches.length}
+            detail="sponsored_tasks.completions_count vs completed task_sessions"
+            label="Task completion mismatches"
+          />
+        </div>
+      </section>
+
       <form action={updatePlatformSettingsAction} className="glass grid gap-4 p-4 lg:grid-cols-2">
         <input name="settingsId" type="hidden" value={settings.id} />
         {[
@@ -220,6 +259,25 @@ export default async function AdminPlatformPage() {
         </div>
         {notifications.length === 0 ? <div className="p-6 text-center text-muted">No notifications have been created yet.</div> : null}
       </section>
+    </div>
+  );
+}
+
+function DiagnosticStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-[5px] border border-white/10 bg-white/[0.045] p-3">
+      <p className="text-slate-400">{label}</p>
+      <p className="mt-1 text-base font-semibold text-slate-100">{typeof value === "number" ? value.toLocaleString("en-US") : value}</p>
+    </div>
+  );
+}
+
+function ConsistencyPanel({ count, detail, label }: { count: number; detail: string; label: string }) {
+  return (
+    <div className={`rounded-[5px] border p-3 ${count === 0 ? "border-emerald-200/20 bg-emerald-300/10" : "border-amber-200/20 bg-amber-300/10"}`}>
+      <p className="font-semibold text-slate-100">{label}</p>
+      <p className="mt-1 text-[24px] font-semibold leading-tight">{count.toLocaleString("en-US")}</p>
+      <p className="mt-1 leading-5 text-slate-300">{detail}</p>
     </div>
   );
 }

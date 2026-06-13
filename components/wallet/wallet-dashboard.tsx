@@ -28,6 +28,7 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
   const [modalOpen, setModalOpen] = useState(false);
   const totalCredits = getTotalCredits(wallet);
   const availableCredits = wallet.availableCredits;
+  const hasCompleteBankDetails = Boolean(bankDetails.bankName && bankDetails.accountNumber && bankDetails.accountName);
   const conversionRate = useMemo(
     () => ({
       creditsPerUnit: financeSettings.creditsPerUnit,
@@ -38,9 +39,11 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
   );
 
   const primaryAmount = useMemo(() => {
-    const amount = fiatMode === "NGN" ? creditsToNaira(totalCredits, conversionRate) : creditsToUsd(totalCredits, conversionRate);
+    const amount = fiatMode === "NGN" ? creditsToNaira(availableCredits, conversionRate) : creditsToUsd(availableCredits, conversionRate);
     return fiatMode === "NGN" ? formatNaira(amount) : formatUsd(amount);
-  }, [conversionRate, fiatMode, totalCredits]);
+  }, [availableCredits, conversionRate, fiatMode]);
+  const lifetimeAmount = useMemo(() => formatNaira(creditsToNaira(totalCredits, conversionRate)), [conversionRate, totalCredits]);
+  const maxWithdrawalNaira = Math.floor(creditsToNaira(availableCredits, conversionRate));
 
   const kpis = [
     {
@@ -92,10 +95,15 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
             <div>
               <div className="mb-3 flex items-center gap-2 text-cyan-100">
                 <Wallet className="size-4" />
-                <span className="font-semibold">Master balance</span>
+                <span className="font-semibold">Available for withdrawal</span>
               </div>
               <p className="text-[28px] font-semibold leading-tight">{primaryAmount}</p>
-              <p className="mt-2 text-muted">{totalCredits.toLocaleString("en-US")} credits</p>
+              <p className="mt-2 text-muted">
+                {availableCredits.toLocaleString("en-US")} withdrawable credits. Lifetime earnings: {totalCredits.toLocaleString("en-US")} credits ({lifetimeAmount}).
+              </p>
+              <p className="mt-2 max-w-2xl leading-5 text-slate-400">
+                Available balance excludes locked earning sources plus pending, approved, and paid withdrawals.
+              </p>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -112,6 +120,7 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
               </label>
               <button
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200"
+                disabled={availableCredits <= 0}
                 onClick={() => setModalOpen(true)}
                 type="button"
               >
@@ -129,6 +138,29 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
               <Lock className="mb-3 size-5" />
               Some earnings may be locked according to platform rules.
             </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            <BalanceDetail label="Reserved withdrawals" value={wallet.reservedWithdrawalCredits} />
+            <BalanceDetail label="Paid withdrawals" value={wallet.totalWithdrawnCredits} />
+            <BalanceDetail label="Locked earnings" value={wallet.lockedCredits} />
+          </div>
+
+          <div className="mt-4 grid gap-2">
+            {wallet.sourceBreakdown.map((source) => (
+              <div className="flex items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.035] p-3" key={source.source}>
+                <div>
+                  <p className="font-semibold text-slate-100">{source.label}</p>
+                  <p className={source.withdrawable ? "text-emerald-300" : "text-slate-400"}>
+                    {source.withdrawable ? "Withdrawable" : "Locked"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-slate-100">{source.credits.toLocaleString("en-US")} credits</p>
+                  <p className="text-slate-400">{formatNaira(creditsToNaira(source.credits, conversionRate))}</p>
+                </div>
+              </div>
+            ))}
           </div>
           
           <div className="mt-4 flex justify-end">
@@ -152,9 +184,18 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
 
       <Modal onClose={() => setModalOpen(false)} open={modalOpen} title="Request Withdrawal">
         <form action={requestWithdrawalAction} className="grid gap-3">
+          <div className="rounded-[5px] border border-cyan-200/20 bg-cyan-300/10 p-3 text-cyan-50">
+            <p className="font-semibold">{formatNaira(maxWithdrawalNaira)} available</p>
+            <p className="mt-1 leading-5 text-cyan-50/80">
+              {availableCredits.toLocaleString("en-US")} credits are withdrawable. Reserved withdrawals: {wallet.reservedWithdrawalCredits.toLocaleString("en-US")} credits.
+            </p>
+          </div>
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Amount to Withdraw</span>
-            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" min="1" name="amountNaira" placeholder="5000" required type="number" />
+            <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" max={maxWithdrawalNaira || 1} min="1" name="amountNaira" placeholder="5000" required type="number" />
+            <span className="text-slate-400">
+              Rate: {financeSettings.creditsPerUnit.toLocaleString("en-US")} credits = {formatUsd(financeSettings.usdPerUnit)} = {formatNaira(financeSettings.usdPerUnit * financeSettings.ngnPerUsd)}.
+            </span>
           </label>
           <label className="grid gap-2">
             <span className="font-medium text-slate-200">Bank Name</span>
@@ -168,11 +209,28 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
             <span className="font-medium text-slate-200">Account Name</span>
             <input defaultValue={bankDetails.accountName} className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" maxLength={100} minLength={2} name="accountName" placeholder="Amina Kareem" required type="text" />
           </label>
-          <button className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200">
+          <p className="leading-5 text-slate-400">
+            Bank details are prefilled from your profile. Submitted withdrawals enter pending review before payout.
+          </p>
+          {!hasCompleteBankDetails ? (
+            <a className="inline-flex min-h-10 items-center justify-center rounded-[5px] border border-white/10 bg-white/[0.055] px-3 font-semibold text-slate-100 transition hover:bg-white/10" href="/profile">
+              Update payout profile
+            </a>
+          ) : null}
+          <button className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={availableCredits <= 0}>
             Submit Request
           </button>
         </form>
       </Modal>
     </>
+  );
+}
+
+function BalanceDetail({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[5px] border border-white/10 bg-white/[0.035] p-3">
+      <p className="text-slate-400">{label}</p>
+      <p className="mt-1 font-semibold text-slate-100">{value.toLocaleString("en-US")} credits</p>
+    </div>
   );
 }

@@ -1,6 +1,10 @@
 import { Banknote, Link2, ShieldCheck, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
 import { completeOnboardingAction } from "./actions";
+import { formatNaira } from "@/lib/money";
+import { getReferralProgramSummary } from "@/lib/referral-summary";
+import { getRequestOrigin } from "@/lib/request-origin";
+import { buildReferralUrl } from "@/lib/share";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +47,10 @@ export default async function OnboardingPage({
     redirect("/feed");
   }
 
-  const referralUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://appdomain.com"}/ref/${profile.referral_code}`;
+  const [referralUrl, referralSummary] = await Promise.all([
+    buildReferralUrl(profile.referral_code, await getRequestOrigin()),
+    getReferralProgramSummary(user.id),
+  ]);
 
   return (
     <main className="grid min-h-screen place-items-center px-4 py-8 text-[11px] text-white">
@@ -65,6 +72,9 @@ export default async function OnboardingPage({
               <div>
                 <p className="font-semibold text-cyan-50">Referral URL ready</p>
                 <p className="mt-2 break-all leading-5 text-slate-300">{referralUrl}</p>
+                <p className="mt-2 leading-5 text-slate-400">
+                  Current bonus: {referralSummary.referralBonusCredits.toLocaleString("en-US")} credits ({formatNaira(referralSummary.referralBonusNaira)}) per qualified referral.
+                </p>
               </div>
             </div>
           </div>

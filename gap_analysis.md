@@ -1,166 +1,150 @@
-# Main User Routes Gap Analysis
+# User Wallet Route Gap Analysis
 
-This document provides a thorough review and gap analysis of the main user routes (excluding admin routes) in byte-earn. It incorporates feedback regarding user-facing transaction history sub-pages and secure admin-configurable earning/withdrawal controls.
+Reviewed on June 13, 2026.
 
----
+Scope:
+- Wallet page: `app/(app)/wallet/page.tsx`
+- Wallet UI: `components/wallet/wallet-dashboard.tsx`
+- Wallet data: `lib/wallet-data.ts`, `lib/wallet.ts`
+- Withdrawal action: `app/(app)/wallet/actions.ts`
+- Related user-route defects found during review: feed comment sheet and profile referral URL.
 
 ## Executive Summary
 
-While the user routing shell and database schemas are established, there are significant gaps where the frontend UI, user actions, and database states are disconnected. 
+The wallet route is functional and now makes the actionable available balance primary. Gross lifetime earnings remain visible as secondary context, while locked earnings, reserved withdrawals, paid withdrawals, and per-source withdrawability are itemized.
 
-1. **Wallet Page (`/wallet`)**: The dashboard displays a "Master Balance" that represents gross historical earnings rather than net current balances. Users cannot see transaction history or past withdrawal requests on the dashboard, nor is there a navigation path to a detailed history page. Additionally, bank details do not prefill or validate from the profile.
-2. **Sponsored Tasks Page (`/tasks`)**: Users can complete CPAGrip and Adsterra tasks, but internal campaigns (share, watch, visit) rely on client-side triggers that can easily be farmed. There is no session history list to check task approval status.
-3. **Referral Flow (`/ref/[code]`, Profile)**: The database triggers correctly award referral credits when referred users become active, but the frontend only shows a raw referral count. Users have no way to see who they referred, the qualification status, or rejection reasons.
-4. **Organic Watch-Time Earnings**: Users can watch normal creator videos (which increments metrics in the database), but there is no mechanism to distribute credits for organic watch time. The watch_time source exists in the schema but remains uncredited.
-5. **Earning and Withdrawal Configuration (Feedback Integration)**: Admins need the ability to configure the credits earned per route (sponsored tasks, referrals, organic watch time, etc.) and explicitly toggle which earning sources are available for user withdrawals. This must be securely enforced at the database level.
+The strongest remaining production gaps are:
+- Add focused tests for available-balance math, especially mixed earning sources and pending or approved withdrawals.
+- Improve wallet history mobile rendering.
+- Complete authenticated browser QA for wallet, profile, onboarding, and feed comment flows.
 
----
+Two related user-route bugs were also found:
+- The feed comment sheet was rendered inside a transformed action rail, which can break fixed positioning on mobile. This has been patched by portaling the shared `Sheet` to `document.body`.
+- Profile and onboarding referral URLs used a fake `https://appdomain.com` fallback. This has been patched so server-rendered pages derive the origin from the hosted request headers, while client sharing falls back to `window.location.origin`.
 
-## 1. Wallet Functionality Gap Analysis
+## Current Wallet Behavior
 
-### Current Implementation Status
-- **Route**: `app/(app)/wallet/page.tsx`
-- **Component**: `components/wallet/wallet-dashboard.tsx`
-- **Actions**: `app/(app)/wallet/actions.ts`
-- **Helper**: `lib/wallet-data.ts`, `lib/wallet.ts`
-- **Database**: `withdrawals` table and the `request_withdrawal_atomically` PL/pgSQL function.
+The wallet page loads `getWalletPageData()` and passes the result into `WalletDashboard`.
 
-### Critical Gaps Against Production
+The current dashboard shows:
+- Available for withdrawal, calculated from unlocked sources minus reserved and paid withdrawals.
+- Lifetime earnings, calculated with `getTotalCredits(wallet)`.
+- Referral earnings.
+- Sponsored task earnings.
+- Available for withdrawal.
+- Total withdrawn.
+- A withdrawal modal with bank details prefilled from the profile.
+- A link to `/wallet/history`.
 
-#### Gap 1.1: Master Balance is Gross, Not Net
-- **Current Behavior**: The wallet dashboard defines `Master Balance` as `referralCredits + sponsoredCredits` (the gross sum of all positive earning entries in the credit ledger). It does not subtract the amount of credits the user has already withdrawn or has pending.
-- **Production Impact**: A user who has earned 10,000 credits and successfully withdrawn 9,000 credits will still see a "Master Balance" of 10,000 credits, while the "Available for Withdrawal" card will show 1,000 credits. This is highly confusing.
-- **Next Step**: Redefine the master balance or current balance to be the net balance: `Gross Earnings - (Pending + Approved + Paid Withdrawals)`.
+`lib/wallet-data.ts` calculates source totals from `credit_ledger`, then subtracts pending, approved, and paid withdrawals from the gross total of currently unlocked earning sources to produce `availableCredits`.
 
-#### Gap 1.2: Ignored Earning Sources in UI (RESOLVED)
-- **Status**: Resolved. Ledger reduction in `lib/wallet-data.ts` now aggregates `admin_credit` and `adjustment` sources.
+## Wallet Gaps
 
-#### Gap 1.3: Lack of Transaction and Withdrawal History Page (RESOLVED)
-- **Status**: Resolved. A dedicated `/wallet/history` page has been created at `app/(app)/wallet/history/page.tsx` displaying full ledger history and withdrawal statuses.
+### 1. "Master balance" overstates what users can act on
 
-#### Gap 1.4: Disconnected Bank Details on Withdrawal Form (PARTIALLY RESOLVED)
-- **Current Behavior**: Prefilling bank details from the profile works. However, the user cannot edit or update their bank details on the profile page once onboarding is completed.
-- **Next Step**: Add editable Bank details fields to the profile form in `app/(app)/profile/page.tsx` with proper input validation.
+Status: Resolved
 
----
+`components/wallet/wallet-dashboard.tsx` now makes available withdrawal balance the primary figure and shows gross lifetime earnings as secondary context.
 
-## 2. Sponsored Task Earnings Gap Analysis
+Implemented:
+- Removed the primary "Master balance" presentation.
+- Added helper text explaining lifetime earnings, locked earnings, reserved withdrawals, paid withdrawals, and available balance.
+- Added shared wallet math helpers used by the dashboard data and withdrawal request action.
 
-### Current Implementation Status
-- **Route**: `app/(app)/tasks/page.tsx` & `app/(app)/tasks/[id]/page.tsx`
-- **Components**: `components/tasks/task-engine.tsx`
-- **Actions**: `app/(app)/tasks/actions.ts`
-- **Helper**: `lib/tasks-data.ts`, `lib/tasks.ts`, `lib/task-fraud.ts`
-- **API Endpoints**: `/api/postback/cpagrip`, `/api/tasks/reconcile/adsterra`, and `/api/postback/monetag` (deprecated).
+### 2. Locked earning sources are not itemized
 
-### Critical Gaps Against Production
+Status: Resolved in backend/UI summary
 
-#### Gap 2.1: Client-Triggered Completion for Internal Tasks (Farming Risk)
-- **Current Behavior**: When completing an internal task (e.g., share campaigns), the frontend resolves the share API or clipboard copy, and immediately calls the server action `completeInternalTask` to log a pending session.
-- **Production Impact**: Scripted client-side API requests can generate completion events without actual off-platform sharing, potentially draining campaign budgets.
-- **Next Step**: Implement server-side verification:
-  - For `share_link`, reward only after a visitor lands on the site via the generated referral/campaign URL.
-  - For `visit_url`, track the elapsed duration between start and completion pings on the server.
-  - For `watch_media`, enforce server-monitored milestone triggers.
+`lib/wallet-data.ts` respects platform unlock settings when calculating `availableCredits`, but the UI only says "Some earnings may be locked according to platform rules."
 
-#### Gap 2.2: Missing Task Verification / Review Status UI
-- **Current Behavior**: If a task is pending or marked suspicious (under review) by the fraud prevention engine, the page displays a simple "Pending verification" or "Under review" message on the task card.
-- **Production Impact**: Users cannot see *why* a task is under review, nor can they view a historical list of completed tasks with rejection reasons.
-- **Next Step**: Add a "Recent Task Activity" log to the task page where users can inspect their task sessions, complete times, statuses, and reasons for rejection.
+Impact:
+- Users cannot tell which earnings are locked or why.
+- Admin toggles may appear broken because the wallet total stays visible while availability changes.
 
-#### Gap 2.3: Adsterra Stats Reconciliation Delay
-- **Current Behavior**: Adsterra direct links are tracked via `psid` appended to redirect URLs. Verification relies on calling `/api/tasks/reconcile/adsterra` with stats pulled from the Adsterra Publisher API.
-- **Production Impact**: Because Adsterra reconciliation is structured as a pull API, completions remain "pending" until an external system or cron job hits the POST endpoint with the secret. There is no automated cron job/scheduler wired into the Next.js runtime yet to execute this regularly.
-- **Next Step**: Set up a background worker or cron route to automatically run the Adsterra reconciliation API at regular intervals.
+Implemented:
+- `getWalletPageData()` now returns a per-source availability breakdown.
+- The wallet UI now shows each earning source as withdrawable or locked.
 
----
+### 3. Pending and approved withdrawals are invisible on the dashboard
 
-## 3. Referral Earnings Gap Analysis
+Status: Resolved in backend/UI summary
 
-### Current Implementation Status
-- **Redirection Route**: `app/ref/[code]/route.ts` (resolves referral codes, sets the `byte_earn_ref` cookie, redirects to gateway).
-- **Signup logic**: `app/auth/actions.ts` (checks cookie or form input, creates a `referral_attributions` record).
-- **Database Trigger**: `qualify_referral_on_profile_activation` database trigger and `"private"."qualify_referral_for_profile"` database function.
+The history page lists withdrawals, but the main wallet page does not show pending or approved withdrawal totals. `availableCredits` subtracts these statuses, so availability can drop with no dashboard explanation.
 
-### Critical Gaps Against Production
+Impact:
+- Users may think credits disappeared after submitting a withdrawal.
 
-#### Gap 3.1: Complete Lack of Referral Tracking UI (RESOLVED)
-- **Status**: Resolved. A detailed referral list showing name, registration date, status, and earnings has been implemented as a table on the profile page using the `ReferralList` component.
+Implemented:
+- The wallet data layer now returns withdrawal totals split by pending, approved, paid, and rejected credits.
+- The wallet dashboard now shows reserved and paid withdrawal credits.
 
-#### Gap 3.2: Verification and Cooldown Checks
-- **Current Behavior**: The `/ref/[code]` route uses a rate-limiter based on IP and referral code. However, it does not prevent a user from repeatedly visiting their own referral link to inflate `referral_visits` rows in the database.
-- **Production Impact**: Database storage can be flooded with fake visits.
-- **Next Step**: Enforce stricter fraud detection on referral clicks, such as ignoring visits where the client IP matches the referrer's last known active IP.
+### 4. Withdrawal modal lacks balance guardrails
 
-#### Gap 3.3: System Reserved Usernames and Bank Prefills on Profile
-- **Current Behavior**: Users can choose any username, including system routes like `admin` or `wallet`. Also, bank details cannot be edited once saved.
-- **Next Step**: Implement a blacklist for reserved usernames and add editable, validated bank inputs on `/profile`.
+Status: Resolved
 
-#### Gap 3.2: Verification and Cooldown Checks
-- **Current Behavior**: The `/ref/[code]` route uses a rate-limiter based on IP and referral code. However, it does not prevent a user from repeatedly visiting their own referral link to inflate `referral_visits` rows in the database.
-- **Production Impact**: Database storage can be flooded with fake visits.
-- **Next Step**: Enforce stricter fraud detection on referral clicks, such as ignoring visits where the client IP matches the referrer's last known active IP.
+The modal now displays:
+- Available naira.
+- Conversion rate.
+- Whether bank details came from the profile.
+- Reserved withdrawal credits.
 
----
+Implemented:
+- Amount input now has a max based on available naira.
+- Withdrawal submission is disabled when no credits are available.
+- Payout review and profile-prefill copy is shown before submission.
 
-## 4. Organic Watch-Time Earnings Gap Analysis
+### 5. History page table is usable, but mobile could be stronger
 
-### Current Implementation Status
-- **Route**: `app/(app)/posts/[id]`
-- **Action**: `app/(app)/posts/actions.ts` -> `recordVideoWatchAction`
-- **Database**: `posts` table columns (`video_watch_seconds_total`, `video_watch_sessions_count`).
+Status: Open
 
-### Critical Gaps Against Production
+`app/(app)/wallet/history/page.tsx` uses horizontally scrollable tables. This avoids breakage, but it is not ideal for repeated mobile use.
 
-#### Gap 4.1: Watch-Time is Analytical Only (No Rewards Wired In)
-- **Current Behavior**: When users watch videos on the feed or single post page, the frontend triggers `recordVideoWatchAction`, which increments the post's total watch seconds and session counts in the database. No credits are calculated or awarded.
-- **Production Impact**: The database schema contains a `watch_time` earning source and the `reward_rules` table contains a disabled placeholder for `watch_time_milestone`. However, there is no actual service or trigger that distributes credits to content creators or viewers for organic watch time.
-- **Next Step**: If organic watch-time earnings are part of the launch scope:
-  - Define whether creators earn credits, viewers earn credits, or both.
-  - Wire up a server action or database transaction that periodically checks watch time additions and inserts corresponding `watch_time` records into the `credit_ledger`, updating `profiles.credits_balance`.
-  - If it is not in scope, clarify in the UI that organic watch-time does not grant credits.
+Impact:
+- Users on phones must pan sideways to inspect status and notes.
 
----
+Recommendation:
+- Keep tables for desktop.
+- Render compact transaction rows/cards on small screens.
 
-## 5. Earning and Withdrawal Configuration (Feedback Integration)
+### 6. Wallet calculations need direct regression coverage
 
-To make the earning and withdrawal system secure, robust, and completely managed from the Admin panel:
+Status: Open
 
-### 5.1 Admin Control over Earning Coefficients
-Admins must be able to dynamically configure:
-- **Sponsored Task Earnings**: Default rewards or multiplier coefficients (although individual sponsored tasks specify their own `reward_credits`, global factors can be governed by admin).
-- **Referral Earnings Amount**: Configured via the `reward_rules` table for `referral_qualified`.
-- **Other Earnings (Organic Watch-Time, Milestones)**: Configured in the `reward_rules` or dedicated finance settings.
+The available-balance rules are important enough for unit-level coverage. Current behavior depends on correctly aligning frontend math, server action math, platform settings, and database constraints.
 
-### 5.2 Admin Control over Withdrawal Eligibility
-Admins must be able to activate or deactivate which earning sources are eligible for withdrawal:
-- Toggle withdrawal eligibility for `referral` earnings.
-- Toggle withdrawal eligibility for `sponsored_task` earnings.
-- Toggle withdrawal eligibility for `watch_time` earnings.
-- Toggle withdrawal eligibility for `admin_credit` / `adjustment` earnings.
+Recommended cases:
+- Paid withdrawals reduce available balance but not lifetime earnings.
+- Pending and approved withdrawals reserve balance.
+- Rejected withdrawals do not reserve balance.
+- Locked source earnings are visible but unavailable.
+- Mixed source balances cannot over-withdraw when only some sources are unlocked.
 
-### 5.3 Secure Database-Level Enforcement Architecture
-To prevent exploit vulnerabilities:
-- The database remains the source of truth.
-- `platform_settings` table will be extended with boolean flags:
-  - `referral_withdrawals_unlocked` (default true)
-  - `sponsored_withdrawals_unlocked` (default false)
-  - `watch_time_withdrawals_unlocked` (default false)
-  - `admin_credit_withdrawals_unlocked` (default true)
-  - `adjustment_withdrawals_unlocked` (default true)
-- The atomic postgres function `"private"."request_withdrawal_atomically"` will be updated to fetch these flags and sum only the ledger entries whose earning sources are currently unlocked:
-  ```sql
-  -- Sum only credits from unlocked sources
-  SELECT COALESCE(SUM(credits), 0)
-  INTO total_unlocked_credits_earned
-  FROM "public"."credit_ledger"
-  WHERE profile_id = request_profile_id
-    AND (
-      (source = 'referral' AND settings.referral_withdrawals_unlocked) OR
-      (source = 'sponsored_task' AND settings.sponsored_withdrawals_unlocked) OR
-      (source = 'watch_time' AND settings.watch_time_withdrawals_unlocked) OR
-      (source = 'admin_credit' AND settings.admin_credit_withdrawals_unlocked) OR
-      (source = 'adjustment' AND settings.adjustment_withdrawals_unlocked)
-    );
-  ```
-- Balance calculations in the frontend wallet queries will mirror this query exactly to ensure zero discrepancies between UI representation and database execution.
+## Related User-Route Findings
+
+### Feed comment sheet on mobile
+
+Status: Patched
+
+`PostActions` renders inside a transformed action rail on `FeedCard`. The shared `Sheet` was previously rendered as a descendant of that transformed element. On mobile, this can make the fixed-position comment sheet calculate its viewport from the transformed ancestor instead of the screen.
+
+Patch:
+- `components/ui/sheet.tsx` now portals the sheet to `document.body`.
+- The sheet now has a fixed overlay click target, scroll containment, `role="dialog"`, `aria-modal="true"`, and safe-area bottom padding.
+
+### Profile referral URL
+
+Status: Patched
+
+The profile route built referral URLs with `process.env.NEXT_PUBLIC_APP_URL ?? "https://appdomain.com"`. When the environment variable was missing, users saw a fake URL.
+
+Patch:
+- `lib/share.ts` no longer contains the fake fallback.
+- `lib/request-origin.ts` derives the request origin from `x-forwarded-host`, `host`, and `x-forwarded-proto`.
+- `app/(app)/profile/page.tsx` and `app/onboarding/page.tsx` pass the real request origin into `buildReferralUrl()`.
+- Client-side share/copy still falls back to `window.location.origin`.
+
+## Recommended Next Steps
+
+1. Add tests around available-balance calculation and withdrawal source-lock behavior.
+2. Improve `/wallet/history` mobile rendering with stacked rows.
+3. Complete authenticated browser QA for `/wallet`, `/wallet/history`, `/feed`, `/profile`, `/onboarding`, and `/tasks`.

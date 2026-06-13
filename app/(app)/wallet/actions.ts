@@ -8,7 +8,7 @@ import { getPlatformSettings } from "@/lib/platform-settings";
 import { validatePayoutDetails } from "@/lib/profile-validation";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
-import { type WalletBreakdown } from "@/lib/wallet";
+import { getAvailableCredits, getWithdrawalStatusBreakdown, type WalletBreakdown } from "@/lib/wallet";
 
 type WithdrawalBalanceBreakdown = Pick<
   WalletBreakdown,
@@ -87,18 +87,8 @@ export async function requestWithdrawalAction(formData: FormData) {
     },
   );
 
-  const pendingOrPaidCredits = (withdrawalResult.data ?? [])
-    .filter((row) => row.status === "pending" || row.status === "approved" || row.status === "paid")
-    .reduce((total, row) => total + row.amount_credits, 0);
-
-  const unlockedGross = 
-    (settings.referral_withdrawals_unlocked ? wallet.referralCredits : 0) +
-    (settings.sponsored_withdrawals_unlocked ? wallet.sponsoredCredits : 0) +
-    (settings.watch_time_withdrawals_unlocked ? wallet.watchTimeCredits : 0) +
-    (settings.admin_credit_withdrawals_unlocked ? wallet.adminCredits : 0) +
-    (settings.adjustment_withdrawals_unlocked ? wallet.adjustmentCredits : 0);
-
-  const availableCredits = Math.max(0, unlockedGross - pendingOrPaidCredits);
+  const withdrawalStatusBreakdown = getWithdrawalStatusBreakdown(withdrawalResult.data ?? []);
+  const availableCredits = getAvailableCredits(wallet, settings, withdrawalStatusBreakdown);
   const requestedCredits = Math.ceil(nairaToCredits(amountNaira, financeSettings));
   const ngnPerCredit = (financeSettings.usdPerUnit / financeSettings.creditsPerUnit) * financeSettings.ngnPerUsd;
 

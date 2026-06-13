@@ -1,9 +1,11 @@
-import { getActiveTasks, getUserTaskProgress, getUserTaskSessionSummary } from "@/lib/tasks-data";
+import { getActiveTasks, getUserTaskBackendSummary, getUserTaskProgress, getUserTaskSessionSummary, getUserVisibleRewardRules } from "@/lib/tasks-data";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TaskEngine } from "@/components/tasks/task-engine";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { Clock } from "lucide-react";
+import { getActiveFinanceSettings } from "@/lib/finance-settings";
+import { creditsToNaira, formatNaira, formatUsd } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -70,8 +72,13 @@ export default async function TasksPage() {
   }
 
   const tasks = await getActiveTasks();
-  const progress = await getUserTaskProgress(user.id);
-  const sessionSummary = await getUserTaskSessionSummary(user.id);
+  const [progress, sessionSummary, taskBackendSummary, financeSettings, rewardRules] = await Promise.all([
+    getUserTaskProgress(user.id),
+    getUserTaskSessionSummary(user.id),
+    getUserTaskBackendSummary(user.id, tasks),
+    getActiveFinanceSettings(),
+    getUserVisibleRewardRules(),
+  ]);
   
   const { data: profile } = await supabase
     .from("profiles")
@@ -88,6 +95,54 @@ export default async function TasksPage() {
         </p>
       </div>
 
+      <section className="grid gap-3 md:grid-cols-4">
+        <TaskStat label="Active tasks" value={taskBackendSummary.activeTaskCount} />
+        <TaskStat label="Available credits" value={taskBackendSummary.totalAvailableTaskCredits} />
+        <TaskStat label="Completed today" value={taskBackendSummary.completedToday} />
+        <TaskStat label="Lifetime completed" value={taskBackendSummary.lifetimeCompleted} />
+        <TaskStat label="Pending" value={taskBackendSummary.pending} />
+        <TaskStat label="Under review" value={taskBackendSummary.suspicious} />
+        <TaskStat label="Rejected today" value={taskBackendSummary.rejectedToday} />
+        <TaskStat label="Earned credits" value={taskBackendSummary.lifetimeSponsoredCredits} />
+      </section>
+
+      <section className="grid gap-3 rounded-[5px] border border-white/10 bg-white/[0.045] p-4 md:grid-cols-3">
+        <div>
+          <p className="font-semibold text-slate-100">Sponsored withdrawals</p>
+          <p className={settings.sponsored_withdrawals_unlocked ? "mt-1 text-emerald-300" : "mt-1 text-slate-400"}>
+            {settings.sponsored_withdrawals_unlocked ? "Withdrawable" : "Locked"}
+          </p>
+        </div>
+        <div>
+          <p className="font-semibold text-slate-100">Task credit value</p>
+          <p className="mt-1 text-slate-300">
+            {taskBackendSummary.totalAvailableTaskCredits.toLocaleString("en-US")} credits = {formatNaira(creditsToNaira(taskBackendSummary.totalAvailableTaskCredits, financeSettings))}
+          </p>
+        </div>
+        <div>
+          <p className="font-semibold text-slate-100">Active rate</p>
+          <p className="mt-1 text-slate-300">
+            {financeSettings.creditsPerUnit.toLocaleString("en-US")} credits = {formatUsd(financeSettings.usdPerUnit)} = {formatNaira(financeSettings.usdPerUnit * financeSettings.ngnPerUsd)}
+          </p>
+        </div>
+      </section>
+
+      {rewardRules.length > 0 ? (
+        <section className="grid gap-2 rounded-[5px] border border-white/10 bg-white/[0.035] p-4">
+          <p className="font-semibold text-slate-100">Reward rules</p>
+          <div className="grid gap-2 md:grid-cols-3">
+            {rewardRules.map((rule) => (
+              <div className="rounded-[5px] border border-white/10 bg-white/[0.045] p-3" key={rule.action}>
+                <p className="font-semibold text-slate-100">{rule.label}</p>
+                <p className={rule.enabled ? "mt-1 text-cyan-100" : "mt-1 text-slate-500"}>
+                  {rule.enabled ? `${rule.credits.toLocaleString("en-US")} credits` : "Disabled"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <TaskEngine
         tasks={tasks}
         progress={progress}
@@ -95,6 +150,15 @@ export default async function TasksPage() {
         profileId={user.id}
         referralCode={profile?.referral_code || ""}
       />
+    </div>
+  );
+}
+
+function TaskStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[5px] border border-white/10 bg-white/[0.045] p-3">
+      <p className="text-slate-400">{label}</p>
+      <p className="mt-1 text-base font-semibold text-slate-100">{value.toLocaleString("en-US")}</p>
     </div>
   );
 }
