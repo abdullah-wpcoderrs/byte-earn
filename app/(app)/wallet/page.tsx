@@ -22,6 +22,7 @@ export default async function WalletPage({
     <WalletDashboard
       bankDetails={data.bankDetails}
       financeSettings={data.financeSettings}
+      recentActivity={data.recentActivity}
       wallet={data.wallet}
       withdrawalError={withdrawalError}
       withdrawalStatus={withdrawalStatus}

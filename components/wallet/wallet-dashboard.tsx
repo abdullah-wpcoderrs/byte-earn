@@ -1,15 +1,14 @@
 "use client";
 
-import { Banknote, ChartNoAxesCombined, ChevronDown, Clapperboard, Lock, ShieldCheck, Users, Wallet } from "lucide-react";
+import { CheckCircle2, Clock, History, Lock, LucideIcon, ShieldCheck, Users, Wallet, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { requestWithdrawalAction } from "@/app/(app)/wallet/actions";
 import { Modal } from "@/components/ui/modal";
 import type { FinanceSettings } from "@/lib/finance-settings";
-import { creditsToNaira, creditsToUsd, formatNaira, formatUsd } from "@/lib/money";
+import { creditsToNaira, formatNaira, getNgnPerCredit } from "@/lib/money";
+import type { WalletActivityItem } from "@/lib/wallet-data";
 import type { WalletBreakdown } from "@/lib/wallet";
 import { getTotalCredits } from "@/lib/wallet";
-
-type FiatMode = "NGN" | "USD";
 
 type WalletDashboardProps = {
   bankDetails: {
@@ -18,13 +17,13 @@ type WalletDashboardProps = {
     accountName: string;
   };
   financeSettings: FinanceSettings;
+  recentActivity: WalletActivityItem[];
   wallet: WalletBreakdown;
   withdrawalError?: string;
   withdrawalStatus?: string;
 };
 
-export function WalletDashboard({ bankDetails, financeSettings, wallet, withdrawalError, withdrawalStatus }: WalletDashboardProps) {
-  const [fiatMode, setFiatMode] = useState<FiatMode>("NGN");
+export function WalletDashboard({ bankDetails, financeSettings, recentActivity, wallet, withdrawalError, withdrawalStatus }: WalletDashboardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const totalCredits = getTotalCredits(wallet);
   const availableCredits = wallet.availableCredits;
@@ -38,43 +37,17 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
     [financeSettings.creditsPerUnit, financeSettings.ngnPerUsd, financeSettings.usdPerUnit],
   );
 
-  const primaryAmount = useMemo(() => {
-    const amount = fiatMode === "NGN" ? creditsToNaira(availableCredits, conversionRate) : creditsToUsd(availableCredits, conversionRate);
-    return fiatMode === "NGN" ? formatNaira(amount) : formatUsd(amount);
-  }, [availableCredits, conversionRate, fiatMode]);
+  const primaryAmount = useMemo(() => formatNaira(creditsToNaira(availableCredits, conversionRate)), [availableCredits, conversionRate]);
   const lifetimeAmount = useMemo(() => formatNaira(creditsToNaira(totalCredits, conversionRate)), [conversionRate, totalCredits]);
   const maxWithdrawalNaira = Math.floor(creditsToNaira(availableCredits, conversionRate));
-
-  const kpis = [
-    {
-      icon: Users,
-      label: "Referral Earnings",
-      meta: "From referring friends",
-      value: formatNaira(creditsToNaira(wallet.referralCredits, conversionRate)),
-    },
-    {
-      icon: Clapperboard,
-      label: "Sponsored Tasks Earnings",
-      meta: "From completing tasks",
-      value: formatNaira(creditsToNaira(wallet.sponsoredCredits, conversionRate)),
-    },
-    {
-      icon: Banknote,
-      label: "Available for Withdrawal",
-      meta: `${availableCredits.toLocaleString("en-US")} credits`,
-      value: formatNaira(creditsToNaira(availableCredits, conversionRate)),
-    },
-    {
-      icon: ChartNoAxesCombined,
-      label: "Total Withdrawn",
-      meta: `${wallet.totalWithdrawnCredits.toLocaleString("en-US")} credits`,
-      value: formatNaira(creditsToNaira(wallet.totalWithdrawnCredits, conversionRate)),
-    },
-  ];
+  const ngnPerCredit = getNgnPerCredit(conversionRate);
+  const minimumWithdrawalNaira = 1;
+  const canRequestWithdrawal = maxWithdrawalNaira >= minimumWithdrawalNaira;
+  const withdrawalProgress = Math.min(100, Math.round((maxWithdrawalNaira / minimumWithdrawalNaira) * 100));
 
   return (
     <>
-      <div className="grid gap-4">
+      <div className="grid gap-4 pb-20">
         {withdrawalError ? (
           <div className="rounded-[5px] border border-red-500/20 bg-red-500/10 p-3 text-red-200 text-xs font-semibold">
             {withdrawalError === "invalid_amount" && "Enter a valid withdrawal amount."}
@@ -91,94 +64,121 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
           </div>
         ) : null}
         <section className="glass-strong p-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          {/* Primary balance hero */}
+          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div>
               <div className="mb-3 flex items-center gap-2 text-cyan-100">
                 <Wallet className="size-4" />
-                <span className="font-semibold">Available for withdrawal</span>
+                <span className="font-semibold">Withdrawable balance</span>
               </div>
-              <p className="text-[28px] font-semibold leading-tight">{primaryAmount}</p>
-              <p className="mt-2 text-muted">
-                {availableCredits.toLocaleString("en-US")} withdrawable credits. Lifetime earnings: {totalCredits.toLocaleString("en-US")} credits ({lifetimeAmount}).
-              </p>
-              <p className="mt-2 max-w-2xl leading-5 text-slate-400">
-                Available balance excludes locked earning sources plus pending, approved, and paid withdrawals.
+              <p className="text-[32px] font-semibold leading-tight">{primaryAmount}</p>
+              <p className="mt-2 text-slate-400" title={`1 credit = ${formatNaira(ngnPerCredit)}`}>
+                {availableCredits.toLocaleString("en-US")} credits &middot; 1 credit = {formatNaira(ngnPerCredit)}
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <label className="relative">
-                <select
-                  className="min-h-9 appearance-none rounded-[5px] border border-white/10 bg-white/[0.065] px-2.5 pr-8 font-semibold text-slate-100 outline-none"
-                  onChange={(event) => setFiatMode(event.target.value as FiatMode)}
-                  value={fiatMode}
-                >
-                  <option value="NGN">Naira</option>
-                  <option value="USD">USD</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-slate-300" />
-              </label>
+            <div className="flex w-full flex-col gap-2 md:w-60">
               <button
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200"
-                disabled={availableCredits <= 0}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-4 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-white/[0.08] disabled:text-slate-500"
+                disabled={!canRequestWithdrawal}
                 onClick={() => setModalOpen(true)}
                 type="button"
               >
                 Request Withdrawal
               </button>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-2 md:grid-cols-2">
-            <div className="rounded-[5px] border border-emerald-300/20 bg-emerald-300/10 p-3 text-emerald-50">
-              <ShieldCheck className="mb-3 size-5" />
-              Referral earnings are withdrawable at any time.
-            </div>
-            <div className="rounded-[5px] border border-white/10 bg-white/[0.045] p-3 text-slate-300">
-              <Lock className="mb-3 size-5" />
-              Some earnings may be locked according to platform rules.
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-2 md:grid-cols-3">
-            <BalanceDetail label="Reserved withdrawals" value={wallet.reservedWithdrawalCredits} />
-            <BalanceDetail label="Paid withdrawals" value={wallet.totalWithdrawnCredits} />
-            <BalanceDetail label="Locked earnings" value={wallet.lockedCredits} />
-          </div>
-
-          <div className="mt-4 grid gap-2">
-            {wallet.sourceBreakdown.map((source) => (
-              <div className="flex items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.035] p-3" key={source.source}>
-                <div>
-                  <p className="font-semibold text-slate-100">{source.label}</p>
-                  <p className={source.withdrawable ? "text-emerald-300" : "text-slate-400"}>
-                    {source.withdrawable ? "Withdrawable" : "Locked"}
-                  </p>
+              {!canRequestWithdrawal && (
+                <p className="text-center leading-5 text-slate-500">
+                  Minimum {formatNaira(minimumWithdrawalNaira)} required.
+                </p>
+              )}
+              {canRequestWithdrawal && (
+                <div className="mt-1">
+                  <div className="h-1 overflow-hidden rounded-full bg-white/10">
+                    <div className="h-full rounded-full bg-cyan-300 transition-all" style={{ width: `${withdrawalProgress}%` }} />
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-slate-100">{source.credits.toLocaleString("en-US")} credits</p>
-                  <p className="text-slate-400">{formatNaira(creditsToNaira(source.credits, conversionRate))}</p>
-                </div>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
-          
+
+          {/* Two-source earnings summary */}
+          <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-4">
+            <EarningChip
+              icon={Users}
+              label="Referral earnings"
+              value={formatNaira(creditsToNaira(wallet.referralCredits, conversionRate))}
+              accent="emerald"
+            />
+            <EarningChip
+              label="Sponsored earnings"
+              value={formatNaira(creditsToNaira(wallet.sponsoredCredits, conversionRate))}
+              accent="cyan"
+            />
+            <EarningChip
+              label="Total withdrawn"
+              value={formatNaira(creditsToNaira(wallet.totalWithdrawnCredits, conversionRate))}
+              accent="slate"
+            />
+            <EarningChip
+              icon={Lock}
+              label="Locked earnings"
+              value={formatNaira(creditsToNaira(wallet.lockedCredits, conversionRate))}
+              accent="slate"
+              note="Not yet withdrawable"
+            />
+          </div>
+
+          {/* Earn source policy */}
+          <div className="mt-4 flex flex-wrap gap-3 text-slate-400">
+            <span className="inline-flex items-center gap-1.5 text-sm">
+              <ShieldCheck className="size-3.5 text-emerald-400" />
+              Referrals are always withdrawable
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-sm">
+              <Lock className="size-3.5 text-slate-500" />
+              Sponsored earnings unlock per platform rules
+            </span>
+          </div>
+
+          {/* Balance breakdown */}
+          <details className="mt-4 rounded-[5px] border border-white/10 bg-white/[0.03] p-3">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold text-slate-100">
+              Balance breakdown
+              <span className="text-slate-400">{lifetimeAmount} lifetime</span>
+            </summary>
+            <div className="mt-4 grid gap-2 md:grid-cols-3">
+              <BalanceDetail description="Pending and approved requests are reserved so the same credits cannot be withdrawn twice." label="Reserved withdrawals" value={wallet.reservedWithdrawalCredits} />
+              <BalanceDetail description="Completed payouts that have already left your withdrawable balance." label="Paid withdrawals" value={wallet.totalWithdrawnCredits} />
+              <BalanceDetail description="Earnings recorded in your wallet but not yet eligible for payout." label="Locked earnings" value={wallet.lockedCredits} />
+            </div>
+          </details>
+
           <div className="mt-4 flex justify-end">
-             <a href="/wallet/history" className="text-sm font-semibold text-cyan-400 hover:text-cyan-300 underline underline-offset-4">
-               View Transaction & Withdrawal History
-             </a>
+            <a href="/wallet/history" className="text-sm font-semibold text-cyan-400 hover:text-cyan-300 underline underline-offset-4">
+              View full history
+            </a>
           </div>
         </section>
 
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {kpis.map((kpi) => (
-            <div className="glass p-4" key={kpi.label}>
-              <kpi.icon className="mb-4 size-5 text-cyan-200" />
-              <p className="text-muted">{kpi.label}</p>
-              <p className="mt-2 text-base font-semibold">{kpi.value}</p>
-              <p className="mt-1 leading-5 text-slate-400">{kpi.meta}</p>
+        <section className="glass p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-cyan-100">
+              <History className="size-4" />
+              <h2 className="font-semibold">Recent activity</h2>
             </div>
-          ))}
+            <a href="/wallet/history" className="font-semibold text-cyan-300 hover:text-cyan-200">
+              Receipts
+            </a>
+          </div>
+          <div className="grid gap-2">
+            {recentActivity.length === 0 ? (
+              <div className="rounded-[5px] border border-white/10 bg-white/[0.035] p-4 text-slate-400">
+                No activity yet. Earnings and withdrawal requests will appear here.
+              </div>
+            ) : (
+              recentActivity.map((item) => <ActivityRow conversionRate={conversionRate} item={item} key={`${item.kind}:${item.id}`} />)
+            )}
+          </div>
         </section>
       </div>
 
@@ -194,7 +194,7 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
             <span className="font-medium text-slate-200">Amount to Withdraw</span>
             <input className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-200/55" max={maxWithdrawalNaira || 1} min="1" name="amountNaira" placeholder="5000" required type="number" />
             <span className="text-slate-400">
-              Rate: {financeSettings.creditsPerUnit.toLocaleString("en-US")} credits = {formatUsd(financeSettings.usdPerUnit)} = {formatNaira(financeSettings.usdPerUnit * financeSettings.ngnPerUsd)}.
+              Rate: 1 credit = {formatNaira(ngnPerCredit)}.
             </span>
           </label>
           <label className="grid gap-2">
@@ -217,7 +217,7 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
               Update payout profile
             </a>
           ) : null}
-          <button className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={availableCredits <= 0}>
+          <button className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={!canRequestWithdrawal}>
             Submit Request
           </button>
         </form>
@@ -226,11 +226,73 @@ export function WalletDashboard({ bankDetails, financeSettings, wallet, withdraw
   );
 }
 
-function BalanceDetail({ label, value }: { label: string; value: number }) {
+function BalanceDetail({ description, label, value }: { description: string; label: string; value: number }) {
   return (
     <div className="rounded-[5px] border border-white/10 bg-white/[0.035] p-3">
       <p className="text-slate-400">{label}</p>
       <p className="mt-1 font-semibold text-slate-100">{value.toLocaleString("en-US")} credits</p>
+      <p className="mt-2 leading-5 text-slate-500">{description}</p>
     </div>
   );
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  referral: "Referral earnings",
+  sponsored_task: "Sponsored earnings",
+  watch_time: "Sponsored earnings",
+  admin_credit: "Platform credit",
+  adjustment: "Balance adjustment",
+};
+
+function EarningChip({ icon: Icon, label, value, accent, note }: { icon?: LucideIcon; label: string; value: string; accent: "emerald" | "cyan" | "slate"; note?: string }) {
+  const accentClass = accent === "emerald" ? "text-emerald-300" : accent === "cyan" ? "text-cyan-300" : "text-slate-300";
+  return (
+    <div className="rounded-[5px] border border-white/10 bg-white/[0.035] p-3">
+      {Icon && <Icon className={`mb-2 size-4 ${accentClass}`} />}
+      <p className="text-slate-400">{label}</p>
+      <p className={`mt-1 font-semibold ${accentClass}`}>{value}</p>
+      {note && <p className="mt-1 text-slate-500">{note}</p>}
+    </div>
+  );
+}
+
+function ActivityRow({ conversionRate, item }: { conversionRate: Parameters<typeof creditsToNaira>[1]; item: WalletActivityItem }) {
+  const isWithdrawal = item.kind === "withdrawal";
+  const amount = isWithdrawal ? formatNaira(item.amountNaira) : formatNaira(creditsToNaira(item.amountCredits, conversionRate));
+  const label = isWithdrawal ? "Withdrawal request" : (SOURCE_LABELS[item.source] ?? item.source.replace(/_/g, " "));
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.035] p-3">
+      <div className="min-w-0">
+        <p className="truncate font-semibold capitalize text-slate-100">{label}</p>
+        <p className="mt-1 text-slate-400">{new Date(item.createdAt).toLocaleString()}</p>
+      </div>
+      <div className="text-right">
+        <p className={isWithdrawal ? "font-semibold text-slate-100" : "font-semibold text-cyan-300"}>
+          {isWithdrawal ? "-" : "+"}{amount}
+        </p>
+        <ActivityStatus status={item.status} />
+      </div>
+    </div>
+  );
+}
+
+function ActivityStatus({ status }: { status: WalletActivityItem["status"] }) {
+  if (status === "credited") {
+    return <span className="mt-1 inline-flex items-center justify-end gap-1 text-emerald-300"><CheckCircle2 className="size-3.5" /> Credited</span>;
+  }
+
+  if (status === "pending") {
+    return <span className="mt-1 inline-flex items-center justify-end gap-1 text-yellow-300"><Clock className="size-3.5" /> Pending</span>;
+  }
+
+  if (status === "approved") {
+    return <span className="mt-1 inline-flex items-center justify-end gap-1 text-blue-300"><Clock className="size-3.5" /> Approved</span>;
+  }
+
+  if (status === "paid") {
+    return <span className="mt-1 inline-flex items-center justify-end gap-1 text-emerald-300"><CheckCircle2 className="size-3.5" /> Paid</span>;
+  }
+
+  return <span className="mt-1 inline-flex items-center justify-end gap-1 text-red-300"><XCircle className="size-3.5" /> Rejected</span>;
 }

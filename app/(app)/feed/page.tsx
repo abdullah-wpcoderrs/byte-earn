@@ -4,13 +4,7 @@ import { getFeedPosts } from "@/lib/posts";
 
 export const dynamic = "force-dynamic";
 
-type FeedPageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export default async function FeedPage({ searchParams }: FeedPageProps) {
-  const params = await searchParams;
-  const uploadOpen = params?.upload === "1";
+export default async function FeedPage() {
   const feedPosts = await getFeedPosts();
 
   return (
@@ -30,7 +24,7 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
         </div>
       </section>
 
-      <FeedUploadButton defaultOpen={uploadOpen} compact />
+      <FeedUploadButton compact />
 
       <aside className="hidden gap-4 lg:grid">
         <section className="glass p-4">

@@ -13,11 +13,9 @@ import {
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
-import { useState } from "react";
 import { signOutAction } from "@/app/auth/actions";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { Modal } from "@/components/ui/modal";
-import { UploadPostForm } from "@/components/upload/upload-post-form";
+import { useUpload } from "@/components/upload/upload-provider";
 import type { NotificationItem } from "@/lib/notifications";
 
 type NavItem = {
@@ -69,6 +67,7 @@ export function AppBrand() {
 
 export function DesktopSidebar({ isAdmin, notifications = [], profileId, unreadCount = 0 }: NavigationProps) {
   const pathname = usePathname();
+  const { openUpload } = useUpload();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] border-r border-white/10 bg-[#08101d]/88 p-4 backdrop-blur-xl lg:flex lg:flex-col">
@@ -76,6 +75,22 @@ export function DesktopSidebar({ isAdmin, notifications = [], profileId, unreadC
       <nav className="mt-8 flex flex-1 flex-col gap-2" aria-label="Primary navigation">
         {visibleNavigation(isAdmin).map((item) => {
           const active = isActive(pathname, item.href);
+          const isUpload = item.href === "/upload";
+
+          if (isUpload) {
+            // Upload opens the native media picker via the global composer, not a page.
+            return (
+              <button
+                className="flex items-center gap-3 rounded-[5px] px-3 py-3 font-medium text-slate-300 transition hover:bg-white/8 hover:text-white"
+                key={item.label}
+                onClick={openUpload}
+                type="button"
+              >
+                <item.icon className="size-5" />
+                {item.label}
+              </button>
+            );
+          }
 
           return (
             <a
@@ -141,52 +156,47 @@ export function MobileHeader({ notifications = [], profileId, unreadCount = 0 }:
 
 export function MobileBottomNav({ isAdmin }: NavigationProps) {
   const pathname = usePathname();
-  const [uploadOpen, setUploadOpen] = useState(false);
+  const { openUpload } = useUpload();
   const items = visibleNavigation(isAdmin)
     .filter((item) => item.href !== "/admin")
     .slice(0, 5);
 
   return (
-    <>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08101d]/92 px-2 pb-3 pt-2 backdrop-blur-xl lg:hidden" aria-label="Primary navigation">
-        <div className="grid grid-cols-5 gap-1">
-          {items.map((item) => {
-            const isUpload = item.href === "/upload";
-            const active = !isUpload && isActive(pathname, item.href);
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08101d]/92 px-2 pb-3 pt-2 backdrop-blur-xl lg:hidden" aria-label="Primary navigation">
+      <div className="grid grid-cols-5 gap-1">
+        {items.map((item) => {
+          const isUpload = item.href === "/upload";
+          const active = !isUpload && isActive(pathname, item.href);
 
-            if (isUpload) {
-              return (
-                <button
-                  className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-[5px] font-medium text-slate-400 transition hover:bg-white/8 hover:text-cyan-100"
-                  key={item.label}
-                  onClick={() => setUploadOpen(true)}
-                  type="button"
-                >
-                  <item.icon className="size-5" />
-                  {item.label}
-                </button>
-              );
-            }
-
+          if (isUpload) {
             return (
-              <a
-                aria-current={active ? "page" : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-[5px] font-medium ${
-                  active ? "bg-cyan-300/12 text-cyan-100" : "text-slate-400"
-                }`}
-                href={item.href}
+              <button
+                className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-[5px] font-medium text-slate-400 transition hover:bg-white/8 hover:text-cyan-100"
                 key={item.label}
+                onClick={openUpload}
+                type="button"
               >
                 <item.icon className="size-5" />
                 {item.label}
-              </a>
+              </button>
             );
-          })}
-        </div>
-      </nav>
-      <Modal className="max-w-3xl" onClose={() => setUploadOpen(false)} open={uploadOpen} title="Create post">
-        <UploadPostForm returnTo="feed" />
-      </Modal>
-    </>
+          }
+
+          return (
+            <a
+              aria-current={active ? "page" : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-[5px] font-medium ${
+                active ? "bg-cyan-300/12 text-cyan-100" : "text-slate-400"
+              }`}
+              href={item.href}
+              key={item.label}
+            >
+              <item.icon className="size-5" />
+              {item.label}
+            </a>
+          );
+        })}
+      </div>
+    </nav>
   );
 }

@@ -158,14 +158,15 @@ export async function createPostAction(formData: FormData) {
   const maxUploadSizeBytes = maxUploadSizeMb * 1024 * 1024;
   const mediaFiles = optionalFiles(formData, "mediaFile");
 
-  if (type === "image_text" && mediaFiles.length > 8) {
+  if (type !== "video_text" && mediaFiles.length > 8) {
     redirectWithError(target, "too_many_media_files");
   }
 
   const mediaFile = assertFile(mediaFiles[0] ?? null, target, "media_required");
   const audioFile = optionalFile(formData, "audioFile");
   const mediaBucket = type === "video_text" ? "post-videos" : "post-images";
-  const acceptedMediaFiles = type === "image_text" ? mediaFiles : [mediaFile];
+  // Video posts are single-file; image posts (including image_audio) may attach up to 8.
+  const acceptedMediaFiles = type === "video_text" ? [mediaFile] : mediaFiles;
   acceptedMediaFiles.forEach((file) => assertAcceptedFile(file, target, type === "video_text" ? "video" : "image", maxUploadSizeBytes));
   if (audioFile) {
     assertAcceptedFile(audioFile, target, "audio", maxUploadSizeBytes);

@@ -3,9 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TaskEngine } from "@/components/tasks/task-engine";
 import { getPlatformSettings } from "@/lib/platform-settings";
-import { Clock } from "lucide-react";
+import { Clock, HelpCircle, Lock, WalletCards } from "lucide-react";
 import { getActiveFinanceSettings } from "@/lib/finance-settings";
-import { creditsToNaira, formatNaira, formatUsd } from "@/lib/money";
+import { creditsToNaira, formatNaira, getNgnPerCredit } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -85,47 +85,61 @@ export default async function TasksPage() {
     .select("referral_code")
     .eq("id", user.id)
     .maybeSingle();
+  const ngnPerCredit = getNgnPerCredit(financeSettings);
+  const isFirstTimeView = taskBackendSummary.lifetimeCompleted === 0 && taskBackendSummary.completedToday === 0 && taskBackendSummary.lifetimeSponsoredCredits === 0;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Sponsored Tasks</h1>
-        <p className="text-muted-foreground mt-2">
-          Complete tasks, watch ads, and share sponsored posts to earn credits.
-        </p>
+    <div className="mx-auto max-w-5xl space-y-6 p-4 pb-20">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Sponsored Tasks</h1>
+          <p className="mt-2 max-w-2xl text-muted">
+            Complete a task and credits are added to your wallet after verification.
+          </p>
+        </div>
+        <div className="rounded-[5px] border border-cyan-200/20 bg-cyan-300/10 p-3 text-cyan-50" title={`1 credit = ${formatNaira(ngnPerCredit)}`}>
+          <div className="flex items-center gap-2 font-semibold">
+            <WalletCards className="size-4" />
+            Credit value
+          </div>
+          <p className="mt-2 text-lg font-semibold">1 credit = {formatNaira(ngnPerCredit)}</p>
+          <p className="mt-1 leading-5 text-cyan-50/80">Rewards shown in NGN. Credits go to your wallet on completion.</p>
+        </div>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-4">
-        <TaskStat label="Active tasks" value={taskBackendSummary.activeTaskCount} />
-        <TaskStat label="Available credits" value={taskBackendSummary.totalAvailableTaskCredits} />
-        <TaskStat label="Completed today" value={taskBackendSummary.completedToday} />
-        <TaskStat label="Lifetime completed" value={taskBackendSummary.lifetimeCompleted} />
-        <TaskStat label="Pending" value={taskBackendSummary.pending} />
-        <TaskStat label="Under review" value={taskBackendSummary.suspicious} />
-        <TaskStat label="Rejected today" value={taskBackendSummary.rejectedToday} />
-        <TaskStat label="Earned credits" value={taskBackendSummary.lifetimeSponsoredCredits} />
-      </section>
-
-      <section className="grid gap-3 rounded-[5px] border border-white/10 bg-white/[0.045] p-4 md:grid-cols-3">
-        <div>
-          <p className="font-semibold text-slate-100">Sponsored withdrawals</p>
-          <p className={settings.sponsored_withdrawals_unlocked ? "mt-1 text-emerald-300" : "mt-1 text-slate-400"}>
-            {settings.sponsored_withdrawals_unlocked ? "Withdrawable" : "Locked"}
-          </p>
+      <details className="rounded-[5px] border border-white/10 bg-white/[0.03] p-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold text-slate-100">
+          {isFirstTimeView ? "Task stats" : "Your task stats"}
+          <HelpCircle className="size-4 text-slate-400" />
+        </summary>
+        {/* One row of forward-looking stats - what motivates and signals opportunity.
+            Internal states (pending, under review, rejected) stay on the admin side. */}
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <TaskStat
+            label="Available credits"
+            value={`${taskBackendSummary.totalAvailableTaskCredits.toLocaleString("en-US")} credits`}
+            subvalue={formatNaira(creditsToNaira(taskBackendSummary.totalAvailableTaskCredits, financeSettings))}
+          />
+          <TaskStat
+            label="Earned so far"
+            value={formatNaira(creditsToNaira(taskBackendSummary.lifetimeSponsoredCredits, financeSettings))}
+            subvalue={`${taskBackendSummary.lifetimeCompleted} completions`}
+          />
+          <TaskStat label="Active tasks" value={taskBackendSummary.activeTaskCount} />
+          <TaskStat label="Lifetime completed" value={taskBackendSummary.lifetimeCompleted} />
         </div>
-        <div>
-          <p className="font-semibold text-slate-100">Task credit value</p>
-          <p className="mt-1 text-slate-300">
-            {taskBackendSummary.totalAvailableTaskCredits.toLocaleString("en-US")} credits = {formatNaira(creditsToNaira(taskBackendSummary.totalAvailableTaskCredits, financeSettings))}
-          </p>
-        </div>
-        <div>
-          <p className="font-semibold text-slate-100">Active rate</p>
-          <p className="mt-1 text-slate-300">
-            {financeSettings.creditsPerUnit.toLocaleString("en-US")} credits = {formatUsd(financeSettings.usdPerUnit)} = {formatNaira(financeSettings.usdPerUnit * financeSettings.ngnPerUsd)}
-          </p>
-        </div>
-      </section>
+        {settings.sponsored_withdrawals_unlocked ? null : (
+          <div className="mt-4 rounded-[5px] border border-white/10 bg-white/[0.035] p-3">
+            <div className="flex items-center gap-2 font-semibold text-slate-100">
+              <Lock className="size-4 text-slate-400" />
+              Sponsored withdrawals
+            </div>
+            <p className="mt-1 text-slate-400">
+              Task earnings are recorded but locked until withdrawals open.
+            </p>
+          </div>
+        )}
+      </details>
 
       {rewardRules.length > 0 ? (
         <section className="grid gap-2 rounded-[5px] border border-white/10 bg-white/[0.035] p-4">
@@ -154,11 +168,12 @@ export default async function TasksPage() {
   );
 }
 
-function TaskStat({ label, value }: { label: string; value: number }) {
+function TaskStat({ label, value, subvalue }: { label: string; value: number | string; subvalue?: string }) {
   return (
     <div className="rounded-[5px] border border-white/10 bg-white/[0.045] p-3">
       <p className="text-slate-400">{label}</p>
-      <p className="mt-1 text-base font-semibold text-slate-100">{value.toLocaleString("en-US")}</p>
+      <p className="mt-1 text-base font-semibold text-slate-100">{typeof value === "number" ? value.toLocaleString("en-US") : value}</p>
+      {subvalue && <p className="mt-1 text-xs text-slate-500">{subvalue}</p>}
     </div>
   );
 }

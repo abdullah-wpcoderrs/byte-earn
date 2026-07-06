@@ -21,6 +21,27 @@ type WithdrawalRow = {
   status: "approved" | "paid" | "pending" | "rejected";
 };
 
+export type WalletActivityItem =
+  | {
+      amountCredits: number;
+      amountNaira: number | null;
+      createdAt: string;
+      description: string | null;
+      id: string;
+      kind: "earning";
+      source: LedgerRow["source"];
+      status: "credited";
+    }
+  | {
+      amountCredits: number;
+      amountNaira: number;
+      createdAt: string;
+      description: string | null;
+      id: string;
+      kind: "withdrawal";
+      status: WithdrawalRow["status"];
+    };
+
 export async function getWalletPageData() {
   const supabase = await createClient();
   const {
@@ -31,9 +52,21 @@ export async function getWalletPageData() {
     return null;
   }
 
-  const [ledgerResult, withdrawalResult, profileResult, settings, financeSettings] = await Promise.all([
+  const [ledgerResult, withdrawalResult, recentLedgerResult, recentWithdrawalResult, profileResult, settings, financeSettings] = await Promise.all([
     supabase.from("credit_ledger").select("credits, source").eq("profile_id", user.id),
     supabase.from("withdrawals").select("amount_credits, status").eq("profile_id", user.id),
+    supabase
+      .from("credit_ledger")
+      .select("id, source, credits, description, created_at")
+      .eq("profile_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(6),
+    supabase
+      .from("withdrawals")
+      .select("id, amount_credits, amount_naira, status, review_note, created_at")
+      .eq("profile_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(6),
     supabase.from("profiles").select("bank_name, account_number, account_name").eq("id", user.id).single(),
     getPlatformSettings(),
     getActiveFinanceSettings(),
@@ -45,6 +78,14 @@ export async function getWalletPageData() {
 
   if (withdrawalResult.error) {
     throw new Error(withdrawalResult.error.message);
+  }
+
+  if (recentLedgerResult.error) {
+    throw new Error(recentLedgerResult.error.message);
+  }
+
+  if (recentWithdrawalResult.error) {
+    throw new Error(recentWithdrawalResult.error.message);
   }
 
   const wallet: WalletBreakdown = ((ledgerResult.data ?? []) as LedgerRow[]).reduce(
@@ -87,8 +128,33 @@ export async function getWalletPageData() {
   wallet.lockedCredits = getLockedCredits(wallet, settings);
   wallet.availableCredits = getAvailableCredits(wallet, settings, withdrawalStatusBreakdown);
 
+  const recentActivity: WalletActivityItem[] = [
+    ...(recentLedgerResult.data ?? []).map((row) => ({
+      amountCredits: row.credits,
+      amountNaira: null,
+      createdAt: row.created_at,
+      description: row.description,
+      id: row.id,
+      kind: "earning" as const,
+      source: row.source,
+      status: "credited" as const,
+    })),
+    ...(recentWithdrawalResult.data ?? []).map((row) => ({
+      amountCredits: row.amount_credits,
+      amountNaira: Number(row.amount_naira),
+      createdAt: row.created_at,
+      description: row.review_note,
+      id: row.id,
+      kind: "withdrawal" as const,
+      status: row.status,
+    })),
+  ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 6);
+
   return {
     financeSettings,
+    recentActivity,
     settings,
     wallet,
     bankDetails: {

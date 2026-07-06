@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type SponsoredTask, type TaskSessionSummary } from "@/lib/tasks-data";
-import { completeInternalTask, completeInternalVisitTask, completeInternalWatchTask, completeInternalShareTask, startTask } from "@/app/(app)/tasks/actions";
+import { completeInternalVisitTask, completeInternalWatchTask, completeInternalShareTask, startTask } from "@/app/(app)/tasks/actions";
 import { Button } from "@/components/ui/button";
 import { Share2, Loader2, CheckCircle2 } from "lucide-react";
 
@@ -113,21 +113,21 @@ function TaskCard({ task, completed, summary }: { task: SponsoredTask; completed
   };
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 flex flex-col justify-between">
+    <div className="flex flex-col justify-between rounded-[5px] border border-white/10 bg-white/[0.045] p-4 transition hover:border-cyan-200/25 hover:bg-white/[0.06]">
       <div>
         <h3 className="font-semibold text-lg line-clamp-1 text-slate-100">{task.title}</h3>
         <p className="mt-1 hidden text-sm text-slate-400 sm:line-clamp-2 sm:block">{task.description}</p>
         <TaskStatusLine summary={summary} message={message} />
       </div>
-      <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-800/50">
-        <div className="font-semibold text-cyan-400">+{task.rewardCredits} Credits</div>
+      <div className="mt-6 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+        <div className="font-semibold text-cyan-300">+{task.rewardCredits} credits</div>
         <div className="flex items-center gap-2">
-          <Link className="hidden rounded-[5px] border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 sm:inline-flex" href={`/tasks/${task.id}`}>
+          <Link className="hidden min-h-10 items-center rounded-[5px] px-3 py-2 text-xs font-semibold text-slate-400 transition hover:bg-white/[0.06] hover:text-slate-100 sm:inline-flex" href={`/tasks/${task.id}`}>
             Details
           </Link>
-          <Button onClick={handleStart} disabled={isFinished || hasPending || loading}>
+          <Button className="min-h-11 px-4" onClick={handleStart} disabled={isFinished || hasPending || loading}>
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            {isFinished ? "Completed" : "Start Task"}
+            {isFinished ? "Completed" : "Start task"}
           </Button>
         </div>
       </div>
@@ -156,7 +156,7 @@ function AdsterraCard({ task, completed, summary }: { task: SponsoredTask; compl
   };
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 flex flex-col justify-between">
+    <div className="flex flex-col justify-between rounded-[5px] border border-white/10 bg-white/[0.045] p-4 transition hover:border-cyan-200/25 hover:bg-white/[0.06]">
       <div>
         <h3 className="font-semibold text-lg line-clamp-1 text-slate-100">{task.title}</h3>
         <p className="mt-1 hidden text-sm text-slate-400 sm:line-clamp-2 sm:block">{task.description}</p>
@@ -167,19 +167,19 @@ function AdsterraCard({ task, completed, summary }: { task: SponsoredTask; compl
           <span>Progress</span>
           <span>{completed} / {task.limitPerUser}</span>
         </div>
-        <div className="w-full bg-slate-800 rounded-full h-2">
+        <div className="h-2 w-full rounded-full bg-white/10">
           <div className="bg-cyan-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
         </div>
       </div>
-      <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-800/50">
-        <div className="font-semibold text-cyan-400 text-sm">+{task.rewardCredits} Credits after verification</div>
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+        <div className="text-sm font-semibold text-cyan-300">+{task.rewardCredits} credits</div>
         <div className="flex items-center gap-2">
-          <Link className="hidden rounded-[5px] border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 sm:inline-flex" href={`/tasks/${task.id}`}>
+          <Link className="hidden min-h-10 items-center rounded-[5px] px-3 py-2 text-xs font-semibold text-slate-400 transition hover:bg-white/[0.06] hover:text-slate-100 sm:inline-flex" href={`/tasks/${task.id}`}>
             Details
           </Link>
-          <Button onClick={handleStart} disabled={isFinished || hasPending || loading}>
+          <Button className="min-h-11 px-4" onClick={handleStart} disabled={isFinished || hasPending || loading}>
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            {isFinished ? "Completed" : "Watch Ad"}
+            {isFinished ? "Completed" : "Watch ad"}
           </Button>
         </div>
       </div>
@@ -313,7 +313,7 @@ function InternalTaskCard({ task, completed, summary, profileId, referralCode }:
   const isVideo = isVideoUrl(task.mediaUrl);
 
   return (
-    <div className="flex flex-col justify-between overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50 p-3.5 sm:p-4">
+    <div className="flex flex-col justify-between overflow-hidden rounded-[5px] border border-white/10 bg-white/[0.045] p-3.5 transition hover:border-cyan-200/25 hover:bg-white/[0.06] sm:p-4">
       <div>
         <h3 className="line-clamp-1 text-base font-semibold text-slate-100 sm:text-lg">{task.title}</h3>
         <p className="mt-1 hidden text-sm text-slate-400 sm:line-clamp-2 sm:block">{task.description}</p>
@@ -347,14 +347,14 @@ function InternalTaskCard({ task, completed, summary, profileId, referralCode }:
           )}
         </div>
       )}
-      <div className="mt-4 flex items-center justify-between border-t border-slate-800/50 pt-3">
-        <div className="text-sm font-semibold text-cyan-400">+{task.rewardCredits} Credits</div>
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+        <div className="text-sm font-semibold text-cyan-300">+{task.rewardCredits} credits</div>
         <div className="flex items-center gap-1.5">
-          <Link className="hidden min-h-9 items-center rounded-[5px] border border-white/10 px-2.5 py-1.5 text-xs font-semibold text-slate-200 sm:inline-flex" href={`/tasks/${task.id}`}>
+          <Link className="hidden min-h-10 items-center rounded-[5px] px-2.5 py-1.5 text-xs font-semibold text-slate-400 transition hover:bg-white/[0.06] hover:text-slate-100 sm:inline-flex" href={`/tasks/${task.id}`}>
             Details
           </Link>
           <Button
-            className="min-h-9 px-2.5 text-sm"
+            className="min-h-11 px-3.5 text-sm"
             onClick={
               visitSessionId ? submitVisitCompletion : 
               watchSessionId ? () => submitWatchCompletion(watchedSeconds) : 

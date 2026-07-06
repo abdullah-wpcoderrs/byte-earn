@@ -186,21 +186,39 @@ export default async function AdminPlatformPage() {
 
       <form action={updatePlatformSettingsAction} className="glass grid gap-4 p-4 lg:grid-cols-2">
         <input name="settingsId" type="hidden" value={settings.id} />
+
+        {/* Platform-level switches that are not tied to a single earning stream */}
+        <p className="lg:col-span-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Platform</p>
         {[
           ["postApprovalRequired", "Require post approval", settings.post_approval_required],
           ["sponsoredTasksEnabled", "Enable sponsored tasks feature", settings.sponsored_tasks_enabled],
-          ["sponsoredWithdrawalsUnlocked", "Unlock sponsored withdrawals", settings.sponsored_withdrawals_unlocked],
+          ["underConstruction", "Under-construction global switch", settings.under_construction],
+        ].map(([name, label, checked]) => (
+          <SettingToggle key={String(name)} label={String(label)} name={String(name)} checked={Boolean(checked)} />
+        ))}
+
+        {/* The two earning streams users see in the wallet */}
+        <p className="lg:col-span-2 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Earning streams (user-facing)</p>
+        {[
           ["referralWithdrawalsUnlocked", "Unlock referral withdrawals", settings.referral_withdrawals_unlocked],
+          ["sponsoredWithdrawalsUnlocked", "Unlock sponsored withdrawals", settings.sponsored_withdrawals_unlocked],
+        ].map(([name, label, checked]) => (
+          <SettingToggle key={String(name)} label={String(label)} name={String(name)} checked={Boolean(checked)} />
+        ))}
+
+        {/* Legacy sources kept in the data layer; not shown in the user wallet */}
+        <p className="lg:col-span-2 mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Legacy earning categories (data layer only)</p>
+        <p className="lg:col-span-2 -mt-2 leading-5 text-slate-400">
+          These no longer surface in the user wallet. Leave locked unless you are supporting a historical balance.
+        </p>
+        {[
           ["watchTimeWithdrawalsUnlocked", "Unlock watch time withdrawals", settings.watch_time_withdrawals_unlocked],
           ["adminCreditWithdrawalsUnlocked", "Unlock admin credit withdrawals", settings.admin_credit_withdrawals_unlocked],
           ["adjustmentWithdrawalsUnlocked", "Unlock adjustment withdrawals", settings.adjustment_withdrawals_unlocked],
-          ["underConstruction", "Under-construction global switch", settings.under_construction],
         ].map(([name, label, checked]) => (
-          <label className="flex min-h-12 items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.055] px-3" key={String(name)}>
-            <span className="font-semibold text-slate-100">{label}</span>
-            <input className="size-4 accent-cyan-300" defaultChecked={Boolean(checked)} name={String(name)} type="checkbox" />
-          </label>
+          <SettingToggle key={String(name)} label={String(label)} name={String(name)} checked={Boolean(checked)} />
         ))}
+
         <TextInput defaultValue={settings.daily_watch_limit_seconds} label="Daily watch limit seconds" name="dailyWatchLimitSeconds" inputMode="numeric" />
         <TextInput defaultValue={settings.max_upload_size_mb ?? 50} label="Max upload size MB" max={100} min={1} name="maxUploadSizeMb" inputMode="numeric" />
         <SubmitButton className="lg:col-span-2" icon={<Save className="size-4" />} pendingLabel="Saving settings..." type="submit">
@@ -260,6 +278,15 @@ export default async function AdminPlatformPage() {
         {notifications.length === 0 ? <div className="p-6 text-center text-muted">No notifications have been created yet.</div> : null}
       </section>
     </div>
+  );
+}
+
+function SettingToggle({ label, name, checked }: { label: string; name: string; checked: boolean }) {
+  return (
+    <label className="flex min-h-12 items-center justify-between gap-3 rounded-[5px] border border-white/10 bg-white/[0.055] px-3" key={name}>
+      <span className="font-semibold text-slate-100">{label}</span>
+      <input className="size-4 accent-cyan-300" defaultChecked={checked} name={name} type="checkbox" />
+    </label>
   );
 }
 
