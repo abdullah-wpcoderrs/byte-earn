@@ -1,119 +1,60 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { writeAuditLog } from "@/lib/audit";
-import { removePostMediaFiles } from "@/lib/post-media";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { createAdminClient, hasSupabaseAdminKey } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-type UploadPostType = "image_audio" | "image_text" | "video_text";
+export type PostType = "image_audio" | "image_text" | "video_text";
 
-const postTypes = new Set(["image_audio", "image_text", "video_text"]);
+export type PostRecordInput = {
+  audioUrl: string | null;
+  caption: string;
+  mediaUrls: string[];
+  type: PostType;
+};
 
-function requiredString(formData: FormData, key: string) {
-  const value = formData.get(key);
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`${key} is required.`);
+export type PostRecordResult = {
+  error?: string;
+  ok: boolean;
+  postId?: string;
+  status?: "pending" | "published";
+};
+
+const postTypes = new Set<PostType>(["image_audio", "image_text", "video_text"]);
+const MAX_CAPTION = 600;
+const MAX_IMAGES = 8;
+const ALLOWED_BUCKETS = new Set(["post-images", "post-videos", "post-audio"]);
+
+function storagePublicPrefix() {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/`;
+}
+
+// Ensures a media URL points into this user's own storage folder so a user
+// cannot attach another person's (or arbitrary) media to their own post.
+function assertOwnMediaUrl(url: string, userId: string): boolean {
+  const prefix = storagePublicPrefix();
+  if (!url.startsWith(prefix)) {
+    return false;
   }
-  return value.trim();
-}
-
-function optionalFile(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return value instanceof File && value.size > 0 ? value : null;
-}
-
-function optionalFiles(formData: FormData, key: string) {
-  return formData.getAll(key).filter((value): value is File => value instanceof File && value.size > 0);
-}
-
-function uploadTarget(formData: FormData) {
-  return formData.get("returnTo") === "feed" ? "feed" : "upload";
-}
-
-function targetUrl(target: "feed" | "upload", params: Record<string, string>) {
-  const searchParams = new URLSearchParams(params);
-  if (target === "feed") {
-    searchParams.set("upload", "1");
+  const rest = url.slice(prefix.length); // <bucket>/<userId>/<file>
+  const [bucket, folder] = rest.split("/");
+  if (!bucket || !ALLOWED_BUCKETS.has(bucket)) {
+    return false;
   }
-  return `/${target}?${searchParams.toString()}`;
+  return folder === userId;
 }
 
-function redirectWithError(target: "feed" | "upload", message: string): never {
-  redirect(targetUrl(target, { error: message }));
-}
-
-function assertFile(file: File | null, target: "feed" | "upload", message: string): File {
-  if (!file) {
-    redirectWithError(target, message);
-  }
-  return file;
-}
-
-function assertAcceptedFile(file: File, target: "feed" | "upload", category: "audio" | "image" | "video", maxUploadSizeBytes: number) {
-  const type = file.type.toLowerCase();
-  const name = file.name.toLowerCase();
-
-  if (file.size > maxUploadSizeBytes) {
-    redirectWithError(target, "file_too_large");
-  }
-
-  if (category === "image" && !type.startsWith("image/")) {
-    redirectWithError(target, "invalid_media_file");
-  }
-
-  if (category === "video" && !type.startsWith("video/")) {
-    redirectWithError(target, "invalid_media_file");
-  }
-
-  if (category === "audio" && type !== "audio/mpeg" && !name.endsWith(".mp3")) {
-    redirectWithError(target, "invalid_audio_file");
-  }
-}
-
-function extensionFor(file: File) {
-  const extension = file.name.split(".").pop()?.toLowerCase();
-  return extension && /^[a-z0-9]+$/.test(extension) ? extension : "bin";
-}
-
-async function uploadPublicFile({
-  bucket,
-  file,
-  target,
-  userId,
-}: {
-  bucket: "post-audio" | "post-images" | "post-videos";
-  file: File;
-  target: "feed" | "upload";
-  userId: string;
-}) {
-  const supabase = hasSupabaseAdminKey() ? createAdminClient() : await createClient();
-  const path = `${userId}/${crypto.randomUUID()}.${extensionFor(file)}`;
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    contentType: file.type,
-    upsert: false,
-  });
-
-  if (error) {
-    redirectWithError(target, error.message);
-  }
-
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
-}
-
-export async function createPostAction(formData: FormData) {
-  const target = uploadTarget(formData);
+export async function createPostRecord(input: PostRecordInput): Promise<PostRecordResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/?auth=required");
+    return { ok: false, error: "auth_required" };
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -123,60 +64,64 @@ export async function createPostAction(formData: FormData) {
     .maybeSingle();
 
   if (profileError || !profile) {
-    redirect("/?auth_error=Profile%20not%20found.");
+    return { ok: false, error: "profile_not_found" };
   }
-
   if (profile.status === "suspended") {
-    redirect(`/?auth_error=${encodeURIComponent("Account suspended.")}`);
+    return { ok: false, error: "account_suspended" };
   }
-
   if (profile.status === "pending_payment") {
-    redirect("/activate");
+    return { ok: false, error: "pending_payment" };
   }
-
   if (profile.status !== "active") {
-    redirect("/onboarding");
+    return { ok: false, error: "onboarding_required" };
   }
 
-  await assertRateLimit(`post:create:${user.id}`, 20, 60 * 60 * 1000);
-
-  const type = requiredString(formData, "postType") as UploadPostType;
-  const rawCaption = requiredString(formData, "caption");
-
-  if (rawCaption.length > 600) {
-    redirectWithError(target, "caption_too_long");
+  try {
+    await assertRateLimit(`post:create:${user.id}`, 20, 60 * 60 * 1000);
+  } catch {
+    return { ok: false, error: "rate_limited" };
   }
 
-  const caption = rawCaption;
-
+  const type = input.type;
   if (!postTypes.has(type)) {
-    redirectWithError(target, "invalid_post_type");
+    return { ok: false, error: "invalid_post_type" };
   }
 
-  const settings = await getPlatformSettings().catch(() => redirectWithError(target, "settings_unavailable"));
-  const maxUploadSizeMb = Math.max(1, settings.max_upload_size_mb ?? 50);
-  const maxUploadSizeBytes = maxUploadSizeMb * 1024 * 1024;
-  const mediaFiles = optionalFiles(formData, "mediaFile");
-
-  if (type !== "video_text" && mediaFiles.length > 8) {
-    redirectWithError(target, "too_many_media_files");
+  const caption = (input.caption ?? "").trim();
+  if (caption.length === 0) {
+    return { ok: false, error: "caption_required" };
+  }
+  if (caption.length > MAX_CAPTION) {
+    return { ok: false, error: "caption_too_long" };
   }
 
-  const mediaFile = assertFile(mediaFiles[0] ?? null, target, "media_required");
-  const audioFile = optionalFile(formData, "audioFile");
-  const mediaBucket = type === "video_text" ? "post-videos" : "post-images";
-  // Video posts are single-file; image posts (including image_audio) may attach up to 8.
-  const acceptedMediaFiles = type === "video_text" ? [mediaFile] : mediaFiles;
-  acceptedMediaFiles.forEach((file) => assertAcceptedFile(file, target, type === "video_text" ? "video" : "image", maxUploadSizeBytes));
-  if (audioFile) {
-    assertAcceptedFile(audioFile, target, "audio", maxUploadSizeBytes);
+  const mediaUrls = input.mediaUrls.map((url) => url.trim()).filter(Boolean);
+  if (mediaUrls.length === 0) {
+    return { ok: false, error: "media_required" };
   }
-  const mediaUrls = await Promise.all(acceptedMediaFiles.map((file) => uploadPublicFile({ bucket: mediaBucket, file, target, userId: user.id })));
-  const mediaUrl = mediaUrls[0];
-  const audioUrl = type === "image_audio"
-    ? await uploadPublicFile({ bucket: "post-audio", file: assertFile(audioFile, target, "audio_required"), target, userId: user.id })
-    : null;
-  const status = settings.post_approval_required ? "pending" : "published";
+  if (type === "video_text" && mediaUrls.length > 1) {
+    return { ok: false, error: "too_many_media_files" };
+  }
+  if (type !== "video_text" && mediaUrls.length > MAX_IMAGES) {
+    return { ok: false, error: "too_many_media_files" };
+  }
+  if (!mediaUrls.every((url) => assertOwnMediaUrl(url, user.id))) {
+    return { ok: false, error: "invalid_media_file" };
+  }
+
+  const audioUrl = type === "image_audio" ? (input.audioUrl ?? "").trim() : null;
+  if (type === "image_audio") {
+    if (!audioUrl || !assertOwnMediaUrl(audioUrl, user.id)) {
+      return { ok: false, error: "audio_required" };
+    }
+  }
+
+  const settings = await getPlatformSettings().catch(() => null);
+  if (!settings) {
+    return { ok: false, error: "settings_unavailable" };
+  }
+  const status: "pending" | "published" = settings.post_approval_required ? "pending" : "published";
+
   const postClient = hasSupabaseAdminKey() ? createAdminClient() : supabase;
   const { data: post, error: postError } = await postClient
     .from("posts")
@@ -184,7 +129,7 @@ export async function createPostAction(formData: FormData) {
       audio_url: audioUrl,
       author_id: user.id,
       caption,
-      media_url: mediaUrl,
+      media_url: mediaUrls[0],
       media_urls: JSON.stringify(mediaUrls),
       status,
       type,
@@ -192,37 +137,29 @@ export async function createPostAction(formData: FormData) {
     .select("id")
     .maybeSingle();
 
-  if (postError) {
-    await removePostMediaFiles([...mediaUrls, audioUrl]);
+  if (postError || !post) {
     await writeAuditLog({
       action: "post.create_failed",
       actorId: user.id,
       entityType: "post",
-      metadata: { message: postError.message, status, type },
+      metadata: { message: postError?.message ?? "insert_failed", status, type },
     }).catch(() => undefined);
-    redirectWithError(target, postError.message);
+    return { ok: false, error: "insert_failed" };
   }
 
   await writeAuditLog({
     action: "post.created",
     actorId: user.id,
-    entityId: post?.id,
+    entityId: post.id,
     entityType: "post",
     metadata: { status, type },
-  });
+  }).catch(() => undefined);
 
   revalidatePath("/feed");
   revalidatePath("/profile");
   revalidatePath("/admin");
   revalidatePath("/admin/moderation");
-  if (post?.id) {
-    revalidatePath(`/posts/${post.id}`);
-  }
+  revalidatePath(`/posts/${post.id}`);
 
-  const updated = status === "published" ? "post_published" : "post_submitted";
-  if (target === "feed" && status === "published" && post?.id) {
-    redirect(`/posts/${post.id}?updated=${updated}`);
-  }
-
-  redirect(target === "feed" ? `/feed?post=${post?.id ?? ""}&updated=${updated}` : `/upload?updated=${updated}`);
+  return { ok: true, postId: post.id, status };
 }

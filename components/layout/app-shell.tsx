@@ -9,11 +9,12 @@ type AppShellProps = {
   notifications?: NotificationItem[];
   profileId?: string;
   unreadCount?: number;
+  userId?: string;
 };
 
-export function AppShell({ children, isAdmin, notifications = [], profileId, unreadCount = 0 }: AppShellProps) {
+export function AppShell({ children, isAdmin, notifications = [], profileId, unreadCount = 0, userId }: AppShellProps) {
   return (
-    <UploadProvider>
+    <UploadProvider userId={userId}>
       <div className="relative isolate min-h-screen text-[11px] text-white lg:pl-[264px]">
         <DesktopSidebar isAdmin={isAdmin} notifications={notifications} profileId={profileId} unreadCount={unreadCount} />
         <MobileHeader notifications={notifications} profileId={profileId} unreadCount={unreadCount} />

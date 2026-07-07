@@ -9,18 +9,15 @@ export default async function FeedPage() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(360px,520px)_minmax(240px,1fr)] lg:items-start">
-      <section className="min-h-[calc(100svh-160px)] overflow-hidden lg:sticky lg:top-4 lg:h-[calc(100svh-32px)] lg:min-h-[620px] lg:p-2 lg:glass-strong">
-        <div className="app-scrollbar h-full snap-y snap-mandatory overflow-y-auto">
-          <div className="grid gap-3">
-            {feedPosts.map((post) => (
-              <FeedCard key={post.id} post={post} />
-            ))}
-            {feedPosts.length === 0 ? (
-              <div className="grid min-h-[calc(100svh-132px)] place-items-center rounded-[5px] border border-white/10 bg-white/[0.045] p-6 text-center text-muted md:min-h-[700px]">
-                No published posts yet.
-              </div>
-            ) : null}
-          </div>
+      {/* Mobile: full-bleed between the header and bottom nav (TikTok-style).
+          Desktop: a clean, full-height column with no glass container. */}
+      <section className="fixed inset-x-0 top-16 bottom-[4.75rem] z-0 lg:static lg:inset-auto lg:top-auto lg:bottom-auto lg:z-auto lg:h-[calc(100svh-3rem)] lg:overflow-hidden">
+        <div className="app-scrollbar flex h-full snap-y snap-mandatory flex-col overflow-y-auto">
+          {feedPosts.length === 0 ? (
+            <div className="grid h-full place-items-center px-6 text-center text-muted">No published posts yet.</div>
+          ) : (
+            feedPosts.map((post) => <FeedCard key={post.id} post={post} />)
+          )}
         </div>
       </section>
 

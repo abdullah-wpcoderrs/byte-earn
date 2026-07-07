@@ -60,7 +60,7 @@ export function FeedCard({ className, post, showFooterMeta = true }: FeedCardPro
     <article
       ref={containerRef}
       className={cn(
-        "relative flex min-h-[calc(100svh-132px)] snap-start flex-col justify-end overflow-hidden rounded-[5px] border border-white/10 bg-slate-950 md:min-h-[700px]",
+        "relative flex h-full shrink-0 snap-start flex-col justify-end overflow-hidden bg-slate-950",
         className,
       )}
     >

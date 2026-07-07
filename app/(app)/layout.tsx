@@ -20,6 +20,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
       notifications={notificationData.notifications}
       profileId={notificationData.profileId ?? undefined}
       unreadCount={notificationData.unreadCount}
+      userId={user?.id}
     >
       {children}
     </AppShell>

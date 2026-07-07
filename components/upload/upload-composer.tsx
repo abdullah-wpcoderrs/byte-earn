@@ -1,11 +1,10 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { LoaderCircle, Music2, UploadCloud, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Music2, UploadCloud, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
-import { createPostAction } from "@/app/(app)/upload/actions";
 import { Button } from "@/components/ui/button";
+import type { PostType } from "@/lib/upload/post-upload";
 
 type MediaPreview = { name: string; type: string; url: string };
 type AudioPreview = { name: string; url: string };
@@ -15,15 +14,17 @@ type UploadComposerProps = {
   onClose: () => void;
   onAutoPickDone: () => void;
   open: boolean;
+  submitPost: (input: { audioFile: File | null; caption: string; files: File[]; type: PostType }) => void;
 };
 
 const MAX_IMAGES = 8;
 
-export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: UploadComposerProps) {
+export function UploadComposer({ autoPick, onClose, onAutoPickDone, open, submitPost }: UploadComposerProps) {
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const [mediaPreviews, setMediaPreviews] = useState<MediaPreview[]>([]);
   const [audioPreview, setAudioPreview] = useState<AudioPreview | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -46,7 +47,7 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
   }, [open, autoPick, onAutoPickDone]);
 
   const hasVideo = mediaPreviews.some((preview) => preview.type.startsWith("video/"));
-  const postType = hasVideo ? "video_text" : audioPreview ? "image_audio" : "image_text";
+  const activePreview = mediaPreviews[activeIndex] ?? mediaPreviews[0];
 
   function handleMediaChange(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.currentTarget.files ?? []);
@@ -60,7 +61,7 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
     const images = files.filter((file) => file.type.startsWith("image/"));
     const videos = files.filter((file) => file.type.startsWith("video/"));
 
-    // TikTok allows a single post to be images OR a video, never mixed.
+    // A single post is images OR a video, never mixed.
     if (images.length > 0 && videos.length > 0) {
       setError("Choose images or a video, not both.");
       event.currentTarget.value = "";
@@ -85,6 +86,7 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
       previous.forEach((preview) => URL.revokeObjectURL(preview.url));
       return selected.map((file) => ({ name: file.name, type: file.type, url: URL.createObjectURL(file) }));
     });
+    setActiveIndex(0);
   }
 
   function handleAudioChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -107,6 +109,7 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
     if (mediaInputRef.current) {
       mediaInputRef.current.value = "";
     }
+    setActiveIndex(0);
     setNote(null);
   }
 
@@ -118,6 +121,31 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
     if (audioInputRef.current) {
       audioInputRef.current.value = "";
     }
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const files = data.getAll("mediaFile").filter((value): value is File => value instanceof File && value.size > 0);
+    const audioValue = data.get("audioFile");
+    const audioFile = audioValue instanceof File && audioValue.size > 0 ? audioValue : null;
+    const caption = String(data.get("caption") ?? "").trim();
+
+    if (files.length === 0) {
+      setError("Please choose an image or video first.");
+      return;
+    }
+    if (!caption) {
+      setError("Please write a caption.");
+      return;
+    }
+
+    const fileHasVideo = files.some((file) => file.type.startsWith("video/"));
+    const type: PostType = fileHasVideo ? "video_text" : audioFile ? "image_audio" : "image_text";
+    // Reset the form so a reopened composer starts empty.
+    form.reset();
+    submitPost({ audioFile, caption, files, type });
   }
 
   if (!open || typeof document === "undefined") {
@@ -134,11 +162,8 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
-        <form action={createPostAction} className="flex min-h-0 flex-1 flex-col">
-          <input name="returnTo" type="hidden" value="feed" />
-          <input name="postType" type="hidden" value={postType} />
-
-          {/* Hidden native inputs hold the real files the server action receives. */}
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+          {/* Hidden native inputs hold the real files the submit handler reads. */}
           <input
             accept="image/*,video/*"
             className="sr-only"
@@ -171,26 +196,55 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
 
           {/* Body: stacked on mobile, two columns on desktop */}
           <div className="grid min-h-0 flex-1 md:grid-cols-[1.4fr_1fr]">
-            {/* Media stage */}
+            {/* Media stage — square preview frame so media is always neatly scaled. */}
             <div className="flex min-h-0 items-center justify-center bg-slate-950/60 p-3 md:p-4">
-              {hasMedia ? (
-                <div className="app-scrollbar flex h-full w-full items-center justify-center gap-2 overflow-x-auto">
-                  {mediaPreviews.map((preview, index) => (
-                    <div className="relative h-full max-h-[60svh] min-h-48 shrink-0 overflow-hidden rounded-[5px] bg-slate-950 md:max-h-[70svh]" key={preview.url}>
-                      {preview.type.startsWith("video/") ? (
-                        <video className="h-full max-w-full object-contain" controls muted playsInline preload="metadata" src={preview.url} />
-                      ) : (
-                        // Native img keeps local blob preview working without a remote fetch.
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img alt={preview.name} className="h-full max-w-full object-contain" src={preview.url} />
-                      )}
-                      {mediaPreviews.length > 1 ? (
-                        <span className="absolute left-1.5 top-1.5 rounded-[5px] bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur">
-                          {index + 1}
+              {hasMedia && activePreview ? (
+                <div className="flex w-full flex-col items-center gap-3">
+                  <div className="relative aspect-square w-full max-w-[18rem] overflow-hidden rounded-[5px] bg-slate-950">
+                    {activePreview.type.startsWith("video/") ? (
+                      <video className="size-full object-cover" muted playsInline preload="metadata" src={activePreview.url} />
+                    ) : (
+                      // Native img keeps local blob preview working without a remote fetch.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img alt={activePreview.name} className="size-full object-cover" src={activePreview.url} />
+                    )}
+                    {mediaPreviews.length > 1 ? (
+                      <>
+                        <button
+                          aria-label="Previous media"
+                          className="absolute left-1.5 top-1/2 z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/65"
+                          onClick={() => setActiveIndex((index) => (index - 1 + mediaPreviews.length) % mediaPreviews.length)}
+                          type="button"
+                        >
+                          <ChevronLeft className="size-4" />
+                        </button>
+                        <button
+                          aria-label="Next media"
+                          className="absolute right-1.5 top-1/2 z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/65"
+                          onClick={() => setActiveIndex((index) => (index + 1) % mediaPreviews.length)}
+                          type="button"
+                        >
+                          <ChevronRight className="size-4" />
+                        </button>
+                        <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur">
+                          {activeIndex + 1} / {mediaPreviews.length}
                         </span>
-                      ) : null}
+                      </>
+                    ) : null}
+                  </div>
+                  {mediaPreviews.length > 1 ? (
+                    <div className="flex flex-wrap justify-center gap-1.5">
+                      {mediaPreviews.map((preview, index) => (
+                        <button
+                          aria-label={`Show media ${index + 1}`}
+                          className={`h-1.5 rounded-full transition ${index === activeIndex ? "w-6 bg-cyan-200" : "w-1.5 bg-white/35 hover:bg-white/60"}`}
+                          key={preview.url}
+                          onClick={() => setActiveIndex(index)}
+                          type="button"
+                        />
+                      ))}
                     </div>
-                  ))}
+                  ) : null}
                 </div>
               ) : (
                 <button
@@ -235,7 +289,6 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
                   maxLength={600}
                   name="caption"
                   placeholder="Write a caption..."
-                  required
                 />
               </label>
 
@@ -273,15 +326,18 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
                 </div>
               ) : null}
 
-              {hasMedia && hasVideo && audioPreview ? (
-                <p className="text-xs text-muted">Videos cannot carry a soundtrack; music was removed.</p>
-              ) : null}
-
               <div className="mt-auto flex items-center justify-end gap-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
                 <Button className="min-h-9 px-2.5" onClick={onClose} type="button" variant="ghost">
                   Discard
                 </Button>
-                <SubmitButton disabled={!hasMedia} />
+                <button
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-4 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!hasMedia}
+                  type="submit"
+                >
+                  <UploadCloud className="size-4" />
+                  Post
+                </button>
               </div>
             </div>
           </div>
@@ -289,20 +345,5 @@ export function UploadComposer({ autoPick, onClose, onAutoPickDone, open }: Uplo
       </section>
     </div>,
     document.body,
-  );
-}
-
-function SubmitButton({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-4 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
-      disabled={disabled || pending}
-      type="submit"
-    >
-      {pending ? <LoaderCircle className="size-4 animate-spin" /> : <UploadCloud className="size-4" />}
-      {pending ? "Posting..." : "Post"}
-    </button>
   );
 }
