@@ -55,7 +55,7 @@ export function WalletDashboard({ bankDetails, financeSettings, recentActivity, 
             {withdrawalError === "invalid_account_number" && "Account number must be numeric and exactly 10 digits."}
             {withdrawalError === "invalid_account_name" && "Account name must be between 2 and 100 characters."}
             {withdrawalError === "insufficient_available_balance" && "You do not have enough available balance for this request."}
-            {!["invalid_amount", "invalid_bank_name", "invalid_account_number", "invalid_account_name", "insufficient_available_balance"].includes(withdrawalError) && decodeURIComponent(withdrawalError)}
+            {!["invalid_amount", "invalid_bank_name", "invalid_account_number", "invalid_account_name", "insufficient_available_balance"].includes(withdrawalError) && "We could not submit the withdrawal. Please try again shortly."}
           </div>
         ) : null}
         {withdrawalStatus === "requested" ? (
@@ -101,44 +101,47 @@ export function WalletDashboard({ bankDetails, financeSettings, recentActivity, 
             </div>
           </div>
 
-          {/* Two-source earnings summary */}
-          <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-4">
-            <EarningChip
-              icon={Users}
-              label="Referral earnings"
-              value={formatNaira(creditsToNaira(wallet.referralCredits, conversionRate))}
-              accent="emerald"
-            />
-            <EarningChip
-              label="Sponsored earnings"
-              value={formatNaira(creditsToNaira(wallet.sponsoredCredits, conversionRate))}
-              accent="cyan"
-            />
-            <EarningChip
-              label="Total withdrawn"
-              value={formatNaira(creditsToNaira(wallet.totalWithdrawnCredits, conversionRate))}
-              accent="slate"
-            />
-            <EarningChip
-              icon={Lock}
-              label="Locked earnings"
-              value={formatNaira(creditsToNaira(wallet.lockedCredits, conversionRate))}
-              accent="slate"
-              note="Not yet withdrawable"
-            />
-          </div>
-
-          {/* Earn source policy */}
-          <div className="mt-4 flex flex-wrap gap-3 text-slate-400">
-            <span className="inline-flex items-center gap-1.5 text-sm">
-              <ShieldCheck className="size-3.5 text-emerald-400" />
-              Referrals are always withdrawable
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-sm">
-              <Lock className="size-3.5 text-slate-500" />
-              Sponsored earnings unlock per platform rules
-            </span>
-          </div>
+          <details className="mt-4 rounded-[5px] border border-white/10 bg-white/[0.03] p-3">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold text-slate-100">
+              Earning sources
+              <span className="text-slate-400">{wallet.sourceBreakdown.length} active</span>
+            </summary>
+            <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+              <EarningChip
+                icon={Users}
+                label="Referral earnings"
+                value={formatNaira(creditsToNaira(wallet.referralCredits, conversionRate))}
+                accent="emerald"
+              />
+              <EarningChip
+                label="Sponsored earnings"
+                value={formatNaira(creditsToNaira(wallet.sponsoredCredits, conversionRate))}
+                accent="cyan"
+              />
+              <EarningChip
+                label="Total withdrawn"
+                value={formatNaira(creditsToNaira(wallet.totalWithdrawnCredits, conversionRate))}
+                accent="slate"
+              />
+              <EarningChip
+                icon={Lock}
+                label="Locked earnings"
+                value={formatNaira(creditsToNaira(wallet.lockedCredits, conversionRate))}
+                accent="slate"
+                note="Not yet withdrawable"
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3 text-slate-400">
+              <span className="inline-flex items-center gap-1.5 text-sm">
+                <ShieldCheck className="size-3.5 text-emerald-400" />
+                Referrals are always withdrawable
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-sm">
+                <Lock className="size-3.5 text-slate-500" />
+                Sponsored earnings unlock per platform rules
+              </span>
+            </div>
+          </details>
 
           {/* Balance breakdown */}
           <details className="mt-4 rounded-[5px] border border-white/10 bg-white/[0.03] p-3">

@@ -53,7 +53,7 @@ export async function completeOnboardingAction(formData: FormData) {
     .eq("id", user.id);
 
   if (error) {
-    redirect(`/onboarding?error=${encodeURIComponent(error.message)}`);
+    redirect("/onboarding?error=service_unavailable");
   }
 
   redirect("/feed?onboarding=saved");

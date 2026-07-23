@@ -162,3 +162,10 @@ https://<YOUR_APP_DOMAIN>/api/postback/cpagrip?tracking_id={tracking_id}&status=
 - [ ] CPAGrip test postback completes one pending session and duplicate retry does not double-credit.
 - [ ] Admin analytics show provider events after test traffic.
 - [ ] Sponsored withdrawals remain locked until at least one real provider reconciliation cycle has been reviewed.
+
+## Reconciliation Operations
+
+- Configure `CRON_SECRET` in the deployment platform. Vercel sends it as `Authorization: Bearer` for the hourly cron request.
+- `ADSTERRA_RECONCILE_DAYS` is bounded to a maximum seven-day replay window and defaults to two days.
+- Replay a missed window manually with `POST /api/tasks/reconcile/adsterra?start_date=YYYY-MM-DD&finish_date=YYYY-MM-DD` and the `x-reconcile-secret` header.
+- Review the `system_failures` and `audit_logs` entries after any failed run before unlocking sponsored withdrawals.

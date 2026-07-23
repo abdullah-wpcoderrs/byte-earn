@@ -124,11 +124,11 @@ export default async function AdminPlatformPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold">Platform readiness</h2>
-              <p className="mt-1 text-muted">Dependency checks for the admin tools that rely on trusted services or external delivery setup.</p>
+              <p className="mt-1 text-muted">Launch-gate checks for payments, providers, migrations, storage, email, and reconciliation freshness.</p>
             </div>
             <span className="inline-flex items-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-200">
               <ServerCog className="size-4 text-cyan-100" />
-              {readiness.readyCount}/{readiness.totalCount} checks ready
+              {readiness.readyCount}/{readiness.totalCount} launch checks passing
             </span>
           </div>
         </div>

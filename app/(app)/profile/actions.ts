@@ -60,7 +60,7 @@ export async function updateOwnProfileAction(formData: FormData) {
     .maybeSingle();
 
   if (existingUsernameError) {
-    redirect(`/profile?error=${encodeURIComponent(existingUsernameError.message)}`);
+    redirect("/profile?error=service_unavailable");
   }
 
   if (existingUsername) {
@@ -84,7 +84,7 @@ export async function updateOwnProfileAction(formData: FormData) {
   }
 
   if (error) {
-    redirect(`/profile?error=${encodeURIComponent(error.message)}`);
+    redirect("/profile?error=service_unavailable");
   }
 
   revalidatePath("/profile");

@@ -14,36 +14,29 @@ export default async function TasksPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth/sign-in");
+    redirect("/?auth=required");
   }
 
   const settings = await getPlatformSettings();
 
   if (!settings.sponsored_tasks_enabled) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:py-24">
-        <div className="glass-strong relative overflow-hidden rounded-2xl p-8 sm:p-12">
-          {/* Decorative glowing background blobs */}
-          <div className="absolute -left-16 -top-16 size-48 rounded-full bg-cyan-500/10 blur-3xl" />
-          <div className="absolute -right-16 -bottom-16 size-48 rounded-full bg-blue-500/10 blur-3xl" />
-
-          <div className="relative z-10 flex flex-col items-center">
-            {/* Pulsing visual element */}
-            <div className="relative flex size-20 items-center justify-center rounded-2xl bg-cyan-950/40 border border-cyan-500/20 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.15)] animate-pulse">
-              <Clock className="size-10" />
+      <div className="mx-auto max-w-2xl px-4 py-10 text-center sm:py-14">
+        <div className="glass-strong p-5 sm:p-6">
+          <div className="flex flex-col items-center">
+            <div className="grid size-12 place-items-center rounded-[5px] border border-cyan-500/20 bg-cyan-950/40 text-cyan-300">
+              <Clock className="size-6" />
             </div>
 
-            <h1 className="mt-8 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h1 className="mt-5 text-xl font-semibold tracking-tight text-white sm:text-2xl">
               Earning Hub Coming Soon
             </h1>
             
             <p className="mt-4 text-sm leading-6 text-slate-400 max-w-md">
-              We are currently preparing the ultimate incentivized earning hub. 
-              Soon, you will be able to perform high-paying sponsored tasks and activities, 
-              to earn massive rewards!
+              Sponsored task campaigns are being prepared. When campaigns are live, you can review eligible activities and see confirmed credits after provider verification.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row w-full sm:w-auto">
+            <div className="mt-6 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
               <a
                 href="/feed"
                 className="flex min-h-11 items-center justify-center rounded-[5px] bg-gradient-to-r from-cyan-500 to-blue-600 px-6 font-semibold text-white shadow-md transition hover:from-cyan-400 hover:to-blue-500"
@@ -58,7 +51,7 @@ export default async function TasksPage() {
               </a>
             </div>
             
-            <div className="mt-8 flex items-center gap-2 text-xs text-cyan-400/80 bg-cyan-950/20 border border-cyan-500/10 px-3 py-1.5 rounded-full">
+            <div className="mt-6 flex items-center gap-2 rounded-[5px] border border-cyan-500/10 bg-cyan-950/20 px-3 py-1.5 text-xs text-cyan-400/80">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>

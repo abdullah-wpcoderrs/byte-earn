@@ -76,6 +76,10 @@ function shouldUseLocalFallback(message: string) {
 }
 
 function shouldUseTransientLocalFallback(error: unknown) {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
 
   return (
@@ -126,11 +130,11 @@ export async function checkRateLimit(key: string, limit: number, windowMs: numbe
       resetAt: new Date(result.reset_at).getTime(),
     };
   } catch (error) {
-    // A temporary Supabase network failure should not hard-block auth routes.
+    // Development can keep moving during local Supabase setup. Production fails closed.
     if (shouldUseTransientLocalFallback(error)) {
       return checkRateLimitLocally(key, limit, windowMs);
     }
-    throw error;
+    throw new Error("Rate limit service unavailable.");
   }
 }
 

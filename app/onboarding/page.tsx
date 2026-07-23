@@ -96,7 +96,7 @@ export default async function OnboardingPage({
               {errorParam === "invalid_bank_name" && "Bank name must be between 2 and 100 characters."}
               {errorParam === "invalid_account_number" && "Account number must be numeric and exactly 10 digits."}
               {errorParam === "invalid_account_name" && "Account name must be between 2 and 100 characters."}
-              {!["invalid_name", "invalid_bank_name", "invalid_account_number", "invalid_account_name"].includes(errorParam) && decodeURIComponent(errorParam)}
+              {!["invalid_name", "invalid_bank_name", "invalid_account_number", "invalid_account_name"].includes(errorParam) && "We could not save onboarding. Please try again."}
             </div>
           )}
           <div className="mb-2 flex items-center gap-2 text-cyan-100">

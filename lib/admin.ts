@@ -3,6 +3,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { buildEmailBlastPreview, parseRecipientSnapshot } from "@/lib/email-blasts";
 import { getGmailSmtpReadiness } from "@/lib/email/gmail-smtp";
+import { isPaystackActivationEnabled } from "@/lib/config/payments";
 import { getOrCreateFinanceSettings } from "@/lib/finance-settings";
 import { defaultPlatformSettings, type PlatformSettings } from "@/lib/platform-settings";
 import { generateReferralCode } from "@/lib/referrals";
@@ -597,25 +598,70 @@ export async function getPlatformReadiness() {
 
   const smtp = getGmailSmtpReadiness();
   const serviceRoleReady = hasSupabaseAdminKey();
+  const paystackEnabled = isPaystackActivationEnabled();
+  const paystackReady = !paystackEnabled || Boolean(process.env.PAYSTACK_SECRET_KEY && process.env.NEXT_PUBLIC_APP_URL);
+  const providerReady = Boolean(
+    process.env.CPAGRIP_POSTBACK_SECRET &&
+      process.env.ADSTERRA_API_KEY &&
+      process.env.ADSTERRA_STATS_ENDPOINT &&
+      (process.env.ADSTERRA_RECONCILE_SECRET || process.env.CRON_SECRET),
+  );
+
   let badgeBucketReady = false;
   let badgeBucketDetail = serviceRoleReady
     ? "Checking badge-images storage bucket."
     : "Add SUPABASE_SERVICE_ROLE_KEY to verify bucket readiness and unlock admin-only actions.";
+  let migrationContractReady = false;
+  let migrationContractDetail = "Add SUPABASE_SERVICE_ROLE_KEY to verify the latest database contract.";
+  let reconciliationFresh = false;
+  let reconciliationDetail = providerReady
+    ? "Checking for a recent Adsterra reconciliation event."
+    : "Configure both provider credentials and the reconciliation secret before checking freshness.";
 
   if (serviceRoleReady) {
     try {
       const supabase = createAdminClient();
-      const { data, error } = await supabase.storage.listBuckets();
-      if (error) {
+      const [bucketResult, settingsResult, providerEventsResult, latestEventResult] = await Promise.all([
+        supabase.storage.listBuckets(),
+        supabase
+          .from("platform_settings")
+          .select("referral_withdrawals_unlocked, watch_time_withdrawals_unlocked, admin_credit_withdrawals_unlocked, adjustment_withdrawals_unlocked")
+          .limit(1)
+          .maybeSingle(),
+        supabase.from("sponsored_task_provider_events").select("id").limit(1),
+        supabase
+          .from("sponsored_task_provider_events")
+          .select("processed_at")
+          .eq("provider", "adsterra")
+          .not("processed_at", "is", null)
+          .order("processed_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      if (bucketResult.error) {
         badgeBucketDetail = "The service role is loaded, but bucket checks are failing. Confirm storage access for badge uploads.";
       } else {
-        badgeBucketReady = (data ?? []).some((bucket) => bucket.name === "badge-images");
+        badgeBucketReady = (bucketResult.data ?? []).some((bucket) => bucket.name === "badge-images");
         badgeBucketDetail = badgeBucketReady
           ? "Badge uploads are ready."
           : "Create the badge-images storage bucket before admins upload badge artwork.";
       }
+
+      migrationContractReady = !settingsResult.error && !providerEventsResult.error;
+      migrationContractDetail = migrationContractReady
+        ? "Withdrawal eligibility fields and sponsored provider-event storage are available."
+        : "Apply the latest journaled migrations before enabling launch traffic.";
+
+      const latestProcessedAt = latestEventResult.data?.processed_at ? new Date(latestEventResult.data.processed_at).getTime() : 0;
+      reconciliationFresh = providerReady && latestProcessedAt > Date.now() - 26 * 60 * 60 * 1000;
+      reconciliationDetail = reconciliationFresh
+        ? "An Adsterra event was reconciled within the last 26 hours."
+        : "Run and review an Adsterra reconciliation cycle before unlocking sponsored withdrawals.";
     } catch {
-      badgeBucketDetail = "The service role is loaded, but storage verification failed.";
+      badgeBucketDetail = "The service role is loaded, but readiness verification failed.";
+      migrationContractDetail = "Runtime migration checks failed. Confirm the hosted database is reachable.";
+      reconciliationDetail = "Runtime reconciliation checks failed. Confirm the hosted database is reachable.";
     }
   }
 
@@ -640,6 +686,36 @@ export async function getPlatformReadiness() {
       label: "Badge image storage",
       ready: badgeBucketReady,
     },
+    {
+      detail: paystackEnabled
+        ? paystackReady
+          ? "Paystack secret and production app URL are configured."
+          : "Set PAYSTACK_SECRET_KEY and NEXT_PUBLIC_APP_URL before enabling paid activation."
+        : "Paid activation is disabled in this environment.",
+      key: "paystack",
+      label: "Paystack activation",
+      ready: paystackReady,
+    },
+    {
+      detail: providerReady
+        ? "CPAGrip postbacks and Adsterra API reconciliation have the required server configuration."
+        : "Set CPAGRIP_POSTBACK_SECRET, ADSTERRA_API_KEY, ADSTERRA_STATS_ENDPOINT, and a reconciliation secret.",
+      key: "provider-config",
+      label: "Provider configuration",
+      ready: providerReady,
+    },
+    {
+      detail: migrationContractDetail,
+      key: "migration-contract",
+      label: "Runtime migration contract",
+      ready: migrationContractReady,
+    },
+    {
+      detail: reconciliationDetail,
+      key: "reconciliation-freshness",
+      label: "Reconciliation freshness",
+      ready: reconciliationFresh,
+    },
   ];
 
   return {
@@ -648,6 +724,7 @@ export async function getPlatformReadiness() {
     totalCount: checks.length,
   };
 }
+
 
 export async function getBackendDiagnostics() {
   await requireAdmin();

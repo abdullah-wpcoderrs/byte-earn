@@ -302,6 +302,34 @@
       "when": 1780660800000,
       "tag": "0042_platform_phase123_readiness_and_email_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1780747200000,
+      "tag": "0043_withdrawal_eligibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1780833600000,
+      "tag": "0044_profile_referral_payout_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1780920000000,
+      "tag": "0045_add_suspicious_task_session_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1781006400000,
+      "tag": "0046_public_withdrawal_rpc_wrapper",
+      "breakpoints": true
     }
   ]
 }

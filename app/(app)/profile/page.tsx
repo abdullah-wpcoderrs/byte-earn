@@ -53,7 +53,7 @@ export default async function ProfilePage({
           {errorParam === "invalid_account_number" && "Account number must be numeric and exactly 10 digits."}
           {errorParam === "invalid_account_name" && "Account name must be between 2 and 100 characters."}
           {errorParam === "username_taken" && "This username is already taken."}
-          {!["invalid_name", "invalid_username", "reserved_username", "invalid_bank_name", "invalid_account_number", "invalid_account_name", "username_taken"].includes(errorParam) && decodeURIComponent(errorParam)}
+          {!["invalid_name", "invalid_username", "reserved_username", "invalid_bank_name", "invalid_account_number", "invalid_account_name", "username_taken"].includes(errorParam) && "We could not save your profile. Please try again."}
         </div>
       )}
       {updatedParam === "profile_saved" && (
@@ -206,7 +206,7 @@ export default async function ProfilePage({
             </div>
             <p className="break-all text-slate-300">{referralUrl}</p>
             <p className="mt-2 text-slate-400">
-              {referralSummary.stats.visitCount.toLocaleString("en-US")} visits - {referralSummary.stats.rejectedCount.toLocaleString("en-US")} rejected - ledger total {referralSummary.referralLedgerCredits.toLocaleString("en-US")} credits
+              {referralSummary.stats.visitCount.toLocaleString("en-US")} referral visits tracked
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 md:flex">

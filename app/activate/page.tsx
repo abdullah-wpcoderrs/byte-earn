@@ -1,6 +1,7 @@
-import { CreditCard, ShieldCheck } from "lucide-react";
+import { Mail, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
 import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
+import { isPaystackActivationEnabled } from "@/lib/config/payments";
 import { signupFeeNaira } from "@/lib/config/pricing";
 import { createClient } from "@/lib/supabase/server";
 
@@ -35,6 +36,8 @@ export default async function ActivatePage() {
   }
 
   const feeNaira = signupFeeNaira();
+  const paymentEnabled = isPaystackActivationEnabled();
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@byte-earn.com";
 
   return (
     <main className="grid min-h-screen place-items-center px-4 py-8 text-[11px] text-white">
@@ -64,12 +67,27 @@ export default async function ActivatePage() {
           <p className="mt-1 text-[24px] font-semibold">NGN {feeNaira.toLocaleString("en-NG")}</p>
         </div>
 
-        <form action="/api/paystack/initialize" className="mt-5" method="post">
-          <button className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200">
-            <CreditCard className="size-4" />
-            Continue to Paystack
-          </button>
-        </form>
+        {paymentEnabled ? (
+          <form action="/api/paystack/initialize" className="mt-5" method="post">
+            <button
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200"
+              type="submit"
+            >
+              Start secure activation
+            </button>
+          </form>
+        ) : (
+          <div className="mt-5 grid gap-3 rounded-[5px] border border-amber-200/15 bg-amber-300/8 p-3 leading-5 text-amber-100">
+            <p>Activation payment is currently unavailable from this screen.</p>
+            <a
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] border border-amber-100/25 bg-amber-100/10 px-3 font-semibold text-amber-50 transition hover:bg-amber-100/15"
+              href={`mailto:${supportEmail}?subject=byte-earn activation support`}
+            >
+              <Mail className="size-4" />
+              Contact support
+            </a>
+          </div>
+        )}
       </section>
     </main>
   );

@@ -1,4 +1,3 @@
-import { Link2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ProfileBadges } from "@/components/profile/profile-badges";
 import { PostGrid } from "@/components/profile/post-grid";
@@ -34,11 +33,13 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.065] px-3 font-semibold text-slate-100">
-              <Link2 className="size-4" />
-              Referral
-            </button>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <ReferralShareButton
+              action="copy-url"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] border border-white/10 bg-white/[0.065] px-3 font-semibold text-slate-100"
+              label="Referral"
+              referralCode={data.profile.referralCode}
+            />
             <ReferralShareButton referralCode={data.profile.referralCode} />
           </div>
         </div>

@@ -62,11 +62,11 @@ export async function requestWithdrawalAction(formData: FormData) {
   ]);
 
   if (ledgerResult.error) {
-    redirect(`/wallet?withdrawal_error=${encodeURIComponent(ledgerResult.error.message)}`);
+    redirect("/wallet?withdrawal_error=service_unavailable");
   }
 
   if (withdrawalResult.error) {
-    redirect(`/wallet?withdrawal_error=${encodeURIComponent(withdrawalResult.error.message)}`);
+    redirect("/wallet?withdrawal_error=service_unavailable");
   }
 
   const wallet = (ledgerResult.data ?? []).reduce<WithdrawalBalanceBreakdown>(
@@ -112,7 +112,7 @@ export async function requestWithdrawalAction(formData: FormData) {
 
   if (error) {
     const knownBalanceError = error.message.includes("insufficient_available_balance");
-    redirect(`/wallet?withdrawal_error=${encodeURIComponent(knownBalanceError ? "insufficient_available_balance" : error.message)}`);
+    redirect(`/wallet?withdrawal_error=${knownBalanceError ? "insufficient_available_balance" : "service_unavailable"}`);
   }
 
   const createdRequest = request?.[0];

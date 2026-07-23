@@ -33,6 +33,18 @@ function withQuery(pathname: string, key: string, value: string) {
   return search ? `${path}?${search}` : path;
 }
 
+function authErrorCode(message?: string) {
+  const normalized = message?.toLowerCase() ?? "";
+
+  if (normalized.includes("password") && normalized.includes("6")) return "weak_password";
+  if (normalized.includes("password")) return "weak_password";
+  if (normalized.includes("invalid login") || normalized.includes("invalid credentials")) return "invalid_credentials";
+  if (normalized.includes("already") || normalized.includes("registered")) return "email_unavailable";
+  if (normalized.includes("rate limit") || normalized.includes("too many")) return "rate_limited";
+
+  return "service_unavailable";
+}
+
 export async function signUpAction(formData: FormData) {
   const displayName = readRequiredString(formData, "displayName");
   const usernameResult = validateUsername(readRequiredString(formData, "username"));
@@ -42,8 +54,8 @@ export async function signUpAction(formData: FormData) {
   if (!usernameResult.ok) {
     redirect(
       usernameResult.code === "reserved_username"
-        ? "/?auth_error=This%20username%20is%20reserved%20and%20cannot%20be%20used."
-        : "/?auth_error=Username%20must%20use%203%20to%2024%20lowercase%20letters,%20numbers,%20or%20underscores.",
+        ? "/?auth_error=reserved_username"
+        : "/?auth_error=invalid_username",
     );
   }
 
@@ -67,11 +79,11 @@ export async function signUpAction(formData: FormData) {
     .maybeSingle();
 
   if (existingUsernameError) {
-    redirect(`/?auth_error=${encodeURIComponent(existingUsernameError.message)}`);
+    redirect("/?auth_error=service_unavailable");
   }
 
   if (existingUsername) {
-    redirect("/?auth_error=Username%20is%20already%20taken.");
+    redirect("/?auth_error=username_taken");
   }
 
   const { data, error } = await supabase.auth.signUp({
@@ -86,7 +98,7 @@ export async function signUpAction(formData: FormData) {
   });
 
   if (error || !data.user) {
-    redirect(`/?auth_error=${encodeURIComponent(error?.message ?? "Unable to create account. Check Supabase Auth settings.")}`);
+    redirect(`/?auth_error=${authErrorCode(error?.message)}`);
   }
 
   const referralCode = await createUniqueReferralCode();
@@ -95,7 +107,7 @@ export async function signUpAction(formData: FormData) {
     : { data: null, error: null };
 
   if (referrerError) {
-    redirect(`/?auth_error=${encodeURIComponent(referrerError.message)}`);
+    redirect("/?auth_error=service_unavailable");
   }
 
   const { error: profileError } = await supabase
@@ -111,7 +123,7 @@ export async function signUpAction(formData: FormData) {
     });
 
   if (profileError) {
-    redirect(`/?auth_error=${encodeURIComponent(profileError.message)}`);
+    redirect("/?auth_error=service_unavailable");
   }
 
   if (providedReferralCode && referrer?.id && referrer.id !== data.user.id) {
@@ -122,7 +134,7 @@ export async function signUpAction(formData: FormData) {
     });
 
     if (attributionError && attributionError.code !== "23505") {
-      redirect(`/?auth_error=${encodeURIComponent(attributionError.message)}`);
+      redirect("/?auth_error=service_unavailable");
     }
   }
 
@@ -143,7 +155,7 @@ export async function signInAction(formData: FormData) {
   });
 
   if (error || !data.user) {
-    redirect(withQuery(errorRedirectTo, "auth_error", error?.message ?? "Unable to sign in."));
+    redirect(withQuery(errorRedirectTo, "auth_error", authErrorCode(error?.message)));
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -157,7 +169,7 @@ export async function signInAction(formData: FormData) {
   }
 
   if (profile.status === "suspended") {
-    redirect(withQuery(errorRedirectTo, "auth_error", "Account suspended."));
+    redirect(withQuery(errorRedirectTo, "auth_error", "account_suspended"));
   }
 
   if (profile.role === "admin") {

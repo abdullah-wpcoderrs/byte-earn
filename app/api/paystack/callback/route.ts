@@ -1,8 +1,21 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit";
+import { SIGNUP_FEE_CURRENCY, SIGNUP_FEE_KOBO } from "@/lib/config/pricing";
 import { verifyPaystackTransaction } from "@/lib/paystack";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+type VerifiedPaystackTransaction = Awaited<ReturnType<typeof verifyPaystackTransaction>>;
+
+function hasExpectedPaymentValue(verified: VerifiedPaystackTransaction) {
+  return verified?.amount === SIGNUP_FEE_KOBO && verified?.currency?.toUpperCase() === SIGNUP_FEE_CURRENCY;
+}
+
+function paymentUpdateErrorCode(message: string) {
+  if (message.includes("Payment reference not found")) return "unknown_reference";
+  if (message.includes("Payment amount or currency mismatch")) return "amount_mismatch";
+  return "payment_verification_failed";
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -13,13 +26,38 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/activate?payment_error=missing_reference", request.url));
   }
 
-  const limit = await checkRateLimit(`paystack:callback:${clientIp}:${reference}`, 8, 10 * 60 * 1000);
-  if (!limit.allowed) {
-    return NextResponse.redirect(new URL("/activate?payment_error=rate_limited", request.url));
+  try {
+    const limit = await checkRateLimit(`paystack:callback:${clientIp}:${reference}`, 8, 10 * 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.redirect(new URL("/activate?payment_error=rate_limited", request.url));
+    }
+  } catch {
+    return NextResponse.redirect(new URL("/activate?payment_error=service_unavailable", request.url));
   }
 
-  const verified = await verifyPaystackTransaction(reference);
+  let verified: VerifiedPaystackTransaction;
+  try {
+    verified = await verifyPaystackTransaction(reference);
+  } catch {
+    return NextResponse.redirect(new URL("/activate?payment_error=payment_verification_failed", request.url));
+  }
+
   const isSuccessful = verified?.status === "success";
+  if (isSuccessful && !hasExpectedPaymentValue(verified)) {
+    await writeAuditLog({
+      action: "payment.amount_mismatch",
+      entityType: "signup_payment",
+      metadata: {
+        expectedAmountKobo: SIGNUP_FEE_KOBO,
+        expectedCurrency: SIGNUP_FEE_CURRENCY,
+        reference,
+        verifiedAmountKobo: verified?.amount ?? null,
+        verifiedCurrency: verified?.currency ?? null,
+      },
+    }).catch(() => undefined);
+    return NextResponse.redirect(new URL("/activate?payment_error=amount_mismatch", request.url));
+  }
+
   const supabase = createAdminClient();
   const { data: paymentUpdate, error: paymentUpdateError } = await supabase.rpc("mark_signup_payment_result", {
     next_amount_kobo: verified?.amount ?? null,
@@ -33,11 +71,7 @@ export async function GET(request: Request) {
   const payment = paymentUpdate?.[0];
 
   if (paymentUpdateError) {
-    const isMissingReference = paymentUpdateError.message.includes("Payment reference not found");
-    if (isMissingReference) {
-      return NextResponse.redirect(new URL("/activate?payment_error=unknown_reference", request.url));
-    }
-    return NextResponse.redirect(new URL(`/activate?payment_error=${encodeURIComponent(paymentUpdateError.message)}`, request.url));
+    return NextResponse.redirect(new URL(`/activate?payment_error=${paymentUpdateErrorCode(paymentUpdateError.message)}`, request.url));
   }
 
   if (!payment) {

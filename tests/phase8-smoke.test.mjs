@@ -228,7 +228,6 @@ test("sponsored task page loads provider tasks and pending session state", () =>
   const tasksPage = read("app/(app)/tasks/page.tsx");
   const tasksData = read("lib/tasks-data.ts");
   const taskEngine = read("components/tasks/task-engine.tsx");
-  const taskDetail = read("app/(app)/tasks/[id]/page.tsx");
 
   assert.match(tasksPage, /getActiveTasks/);
   assert.match(tasksPage, /getUserTaskBackendSummary/);
@@ -561,3 +560,95 @@ test("username availability checks reject invalid entries and back the live user
   assert.match(route, /username_taken/);
   assert.match(route, /reserved_username/);
 });
+
+test("public withdrawal wrapper and launch gate are part of the release contract", () => {
+  const journal = read("db/migrations/meta/_journal.json");
+  const wrapper = read("db/migrations/0046_public_withdrawal_rpc_wrapper.sql");
+  const launch = read("docs/production-launch-checklist.md");
+  const admin = read("lib/admin.ts");
+
+  assert.match(journal, /0043_withdrawal_eligibility/);
+  assert.match(journal, /0044_profile_referral_payout_hardening/);
+  assert.match(journal, /0045_add_suspicious_task_session_status/);
+  assert.match(journal, /0046_public_withdrawal_rpc_wrapper/);
+  assert.match(wrapper, /CREATE OR REPLACE FUNCTION "public"\."request_withdrawal_atomically"/);
+  assert.match(wrapper, /SECURITY INVOKER/);
+  assert.match(wrapper, /private"\."request_withdrawal_atomically/);
+  assert.match(wrapper, /TO authenticated/);
+  assert.match(launch, /0046_public_withdrawal_rpc_wrapper/);
+  assert.match(admin, /Paystack activation/);
+  assert.match(admin, /Reconciliation freshness/);
+});
+
+test("referral and Adsterra operations use trusted and replayable paths", () => {
+  const referral = read("app/ref/[code]/route.ts");
+  const reconcile = read("app/api/tasks/reconcile/adsterra/route.ts");
+  const vercel = read("vercel.json");
+
+  assert.match(referral, /const lookupClient = hasSupabaseAdminKey\(\) \? createAdminClient\(\) : supabase/);
+  assert.match(referral, /lookupClient[\s\S]*from\("profiles"\)/);
+  assert.match(reconcile, /ADSTERRA_RECONCILE_DAYS/);
+  assert.match(reconcile, /Math\.min\(7/);
+  assert.match(reconcile, /authorization/);
+  assert.match(reconcile, /system_failures/);
+  assert.match(reconcile, /start_date/);
+  assert.match(vercel, /reconcile\/adsterra/);
+});
+
+test("auth and public task copy match the mobile and trust requirements", () => {
+  const auth = read("app/page.tsx");
+  const activate = read("app/activate/page.tsx");
+  const tasks = read("app/(app)/tasks/page.tsx");
+
+  assert.match(auth, /hidden min-h-\[48svh\].*lg:flex/);
+  assert.match(auth, /hidden rounded-\[5px\].*lg:block/);
+  assert.match(auth, /hidden gap-2 lg:grid/);
+  assert.doesNotMatch(activate, /Continue to Paystack/);
+  assert.doesNotMatch(activate, /CreditCard/);
+  assert.match(tasks, /confirmed credits after provider verification/);
+  assert.doesNotMatch(tasks, /massive rewards/);
+});
+
+test("targeted mobile surfaces keep wallet history and comments usable", () => {
+  const walletHistory = read("app/(app)/wallet/history/page.tsx");
+  const postActions = read("components/feed/post-actions.tsx");
+  const sheet = read("components/ui/sheet.tsx");
+  const navigation = read("components/layout/app-navigation.tsx");
+  const walletDashboard = read("components/wallet/wallet-dashboard.tsx");
+  const referralList = read("components/profile/referral-list.tsx");
+
+  assert.match(walletHistory, /pb-20/);
+  assert.match(walletHistory, /md:hidden/);
+  assert.match(walletHistory, /md:block/);
+  assert.match(walletHistory, /break-words/);
+  assert.match(postActions, /Open comments/);
+  assert.match(postActions, /Write a comment\.\.\./);
+  assert.match(postActions, /Post comment/);
+  assert.match(postActions, /<Sheet/);
+  assert.match(sheet, /max-h-\[88svh\]/);
+  assert.match(sheet, /safe-area-inset-bottom/);
+  assert.match(sheet, /Close sheet/);
+  assert.match(navigation, /fixed inset-x-0 bottom-0/);
+  assert.match(walletDashboard, /Referral earnings/);
+  assert.match(walletDashboard, /Sponsored earnings/);
+  assert.match(referralList, /Pending qualification/);
+});
+
+test("protected route and activation cleanup contracts remain explicit", () => {
+  const middleware = read("lib/supabase/middleware.ts");
+  const walletHistory = read("app/(app)/wallet/history/page.tsx");
+  const feed = read("app/(app)/feed/page.tsx");
+  const profile = read("app/(app)/profile/page.tsx");
+  const tasks = read("app/(app)/tasks/page.tsx");
+  const taskDetail = read("app/(app)/tasks/[id]/page.tsx");
+  const activate = read("app/activate/page.tsx");
+
+  assert.match(middleware, /auth=required/);
+  assert.match(walletHistory, /redirect\("\/"\)/);
+  assert.match(feed, /FeedCard/);
+  assert.match(profile, /redirect\("\/"\)/);
+  assert.match(tasks, /redirect\("\/\?auth=required"\)/);
+  assert.match(taskDetail, /redirect\("\/\?auth=required"\)/);
+  assert.doesNotMatch(activate, /Continue to Paystack/);
+});
+

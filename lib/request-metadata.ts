@@ -9,8 +9,23 @@ function firstForwardedIp(value: string | null) {
   return value?.split(",")[0]?.trim() || null;
 }
 
+function configuredTrustedHeader(requestHeaders: Headers, envName: string) {
+  const headerName = process.env[envName]?.trim().toLowerCase();
+  return headerName ? cleanHeader(requestHeaders.get(headerName)) : null;
+}
+
 export function getTrustedClientIp(requestHeaders: Headers) {
-  // Prefer proxy-provided headers; x-forwarded-for is only a final fallback.
+  const configuredIp = configuredTrustedHeader(requestHeaders, "TRUSTED_CLIENT_IP_HEADER");
+  if (configuredIp) return configuredIp;
+
+  if (process.env.NODE_ENV === "production") {
+    return (
+      cleanHeader(requestHeaders.get("cf-connecting-ip")) ??
+      cleanHeader(requestHeaders.get("true-client-ip")) ??
+      firstForwardedIp(requestHeaders.get("x-vercel-forwarded-for"))
+    );
+  }
+
   return (
     cleanHeader(requestHeaders.get("cf-connecting-ip")) ??
     cleanHeader(requestHeaders.get("true-client-ip")) ??
@@ -20,11 +35,10 @@ export function getTrustedClientIp(requestHeaders: Headers) {
 }
 
 export function getTrustedCountryCode(requestHeaders: Headers) {
-  // Cloudflare and Vercel are the expected production country sources.
-  const country =
+  const configuredCountry = configuredTrustedHeader(requestHeaders, "TRUSTED_COUNTRY_HEADER");
+  const country = configuredCountry ??
     cleanHeader(requestHeaders.get("cf-ipcountry")) ??
-    cleanHeader(requestHeaders.get("x-vercel-ip-country")) ??
-    cleanHeader(requestHeaders.get("x-country-code"));
+    cleanHeader(requestHeaders.get("x-vercel-ip-country"));
 
   return country?.toUpperCase() ?? null;
 }

@@ -12,7 +12,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) redirect("/auth/sign-in");
+  if (!user) redirect("/?auth=required");
 
   const { data: task } = await supabase
     .from("sponsored_tasks")

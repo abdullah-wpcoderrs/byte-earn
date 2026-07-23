@@ -25,7 +25,18 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
   const auth = searchParams.get("auth");
 
   if (authError) {
-    messages.push({ body: authError, id: `auth_error:${authError}`, title: "Authentication failed", tone: "warning" });
+    const copy: Record<string, string> = {
+      account_suspended: "This account is suspended.",
+      email_unavailable: "This email cannot be used for a new account. Try signing in instead.",
+      invalid_credentials: "Check your email and password, then try again.",
+      invalid_username: "Username must be 3-24 lowercase letters, numbers, or underscores.",
+      rate_limited: "Too many attempts. Please wait and try again.",
+      reserved_username: "This username is reserved and cannot be used.",
+      service_unavailable: "We could not complete that request. Please try again shortly.",
+      username_taken: "This username is already taken.",
+      weak_password: "Use a password with at least 8 characters.",
+    };
+    messages.push({ body: copy[authError] ?? "We could not complete that request. Please try again.", id: `auth_error:${authError}`, title: "Authentication failed", tone: "warning" });
   }
 
   if (paymentError) {
@@ -34,6 +45,10 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
       not_successful: "The payment was not successful. Please try again.",
       rate_limited: "Too many payment attempts. Please wait and try again.",
       unknown_reference: "We could not match this payment reference.",
+      amount_mismatch: "The verified payment did not match the required signup fee.",
+      payment_verification_failed: "We could not verify this payment. Please try again.",
+      profile_not_ready: "Your account is not ready for activation yet.",
+      service_unavailable: "Payment verification is temporarily unavailable. Please try again shortly.",
     };
     messages.push({ body: copy[paymentError] ?? paymentError.replace(/_/g, " "), id: `payment_error:${paymentError}`, title: "Payment update", tone: "warning" });
   }
@@ -87,8 +102,13 @@ function getToastMessages(searchParams: URLSearchParams): ToastMessage[] {
   if (withdrawalError) {
     const copy: Record<string, string> = {
       invalid_amount: "Enter a valid withdrawal amount.",
+      invalid_bank_name: "Bank name must be between 2 and 100 characters.",
+      invalid_account_number: "Account number must be numeric and exactly 10 digits.",
+      invalid_account_name: "Account name must be between 2 and 100 characters.",
+      insufficient_available_balance: "You do not have enough available balance for this request.",
+      service_unavailable: "We could not submit the withdrawal. Please try again shortly.",
     };
-    messages.push({ body: copy[withdrawalError] ?? withdrawalError.replace(/_/g, " "), id: `withdrawal_error:${withdrawalError}`, title: "Withdrawal not submitted", tone: "warning" });
+    messages.push({ body: copy[withdrawalError] ?? "We could not submit the withdrawal. Please try again shortly.", id: `withdrawal_error:${withdrawalError}`, title: "Withdrawal not submitted", tone: "warning" });
   }
 
   if (withdrawal === "requested") {

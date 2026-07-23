@@ -41,6 +41,23 @@ function normalizeStatsRows(payload: unknown): AdsterraStatsRow[] {
   return [];
 }
 
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function reconciliationWindow(request: NextRequest, body: Record<string, unknown>) {
+  const configuredDays = Number(process.env.ADSTERRA_RECONCILE_DAYS ?? 2);
+  const days = Math.min(7, Math.max(1, Number.isFinite(configuredDays) ? Math.floor(configuredDays) : 2));
+  const finishDate = String(body.finish_date ?? request.nextUrl.searchParams.get("finish_date") ?? dateOnly(new Date()));
+  const finish = new Date(`${finishDate}T00:00:00.000Z`);
+  const startDate = String(
+    body.start_date ??
+      request.nextUrl.searchParams.get("start_date") ??
+      dateOnly(new Date(finish.getTime() - (days - 1) * 24 * 60 * 60 * 1000)),
+  );
+  return { startDate, finishDate };
+}
+
 async function writeSystemAudit(action: string, entityId: string | null, metadata: Record<string, unknown>) {
   await supabase.from("audit_logs").insert({
     action,
@@ -52,9 +69,9 @@ async function writeSystemAudit(action: string, entityId: string | null, metadat
 }
 
 async function loadAdsterraStats(request: NextRequest) {
-  const body = await request.json().catch(() => ({}));
-  if (Array.isArray(body?.stats)) {
-    return body.stats as AdsterraStatsRow[];
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  if (Array.isArray(body.stats)) {
+    return { rows: body.stats as AdsterraStatsRow[], window: null };
   }
 
   const endpoint = process.env.ADSTERRA_STATS_ENDPOINT;
@@ -64,9 +81,14 @@ async function loadAdsterraStats(request: NextRequest) {
     throw new Error("Adsterra stats endpoint or API key is not configured");
   }
 
-  const response = await fetch(endpoint, {
+  const window = reconciliationWindow(request, body);
+  const endpointUrl = new URL(endpoint);
+  endpointUrl.searchParams.set("start_date", window.startDate);
+  endpointUrl.searchParams.set("finish_date", window.finishDate);
+
+  const response = await fetch(endpointUrl, {
     headers: {
-      "Accept": "application/json",
+      Accept: "application/json",
       "X-API-Key": apiKey,
     },
     cache: "no-store",
@@ -76,20 +98,33 @@ async function loadAdsterraStats(request: NextRequest) {
     throw new Error(`Adsterra stats request failed with ${response.status}`);
   }
 
-  return normalizeStatsRows(await response.json());
+  return { rows: normalizeStatsRows(await response.json()), window };
 }
 
 export async function POST(request: NextRequest) {
-  const secret = request.headers.get("x-reconcile-secret") ?? request.nextUrl.searchParams.get("secret");
-  if (secret !== process.env.ADSTERRA_RECONCILE_SECRET) {
+  const authorization = request.headers.get("authorization");
+  const bearerSecret = authorization?.startsWith("Bearer ") ? authorization.slice(7) : null;
+  const secret = request.headers.get("x-reconcile-secret") ?? bearerSecret ?? request.nextUrl.searchParams.get("secret");
+  const expectedSecret = process.env.ADSTERRA_RECONCILE_SECRET ?? process.env.CRON_SECRET;
+  if (!expectedSecret || secret !== expectedSecret) {
     return NextResponse.json({ error: "Invalid reconcile secret" }, { status: 403 });
   }
 
   let statsRows: AdsterraStatsRow[];
+  let window: { startDate: string; finishDate: string } | null = null;
   try {
-    statsRows = await loadAdsterraStats(request);
+    const loaded = await loadAdsterraStats(request);
+    statsRows = loaded.rows;
+    window = loaded.window;
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load Adsterra stats" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to load Adsterra stats";
+    await supabase.from("system_failures").insert({
+      category: "adsterra_reconciliation",
+      message,
+      metadata: JSON.stringify({ retryable: true }),
+    });
+    await writeSystemAudit("system.adsterra_reconciliation.failed", null, { error: message, retryable: true });
+    return NextResponse.json({ error: message, retryable: true }, { status: 500 });
   }
 
   const results = [];
@@ -119,9 +154,8 @@ export async function POST(request: NextRequest) {
     }
 
     const hasActivity = clicks > 0 || revenue > 0;
-    let eventStatus = hasActivity ? "confirmed" : "no_activity";
     const risk = hasActivity && session.status === "pending" ? await evaluateProviderSessionRisk(supabase, session, { conversionIp, conversionCountry }) : { allowed: true };
-    if (!risk.allowed) eventStatus = "suspicious";
+    const eventStatus = !risk.allowed ? "suspicious" : hasActivity ? "confirmed" : "no_activity";
 
     await supabase.from("sponsored_task_provider_events").upsert(
       {
@@ -186,5 +220,6 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ success: true, processed: results.length, results });
+  const errors = results.filter((result) => result.status === "error").length;
+  return NextResponse.json({ success: errors === 0, processed: results.length, errors, window, results });
 }

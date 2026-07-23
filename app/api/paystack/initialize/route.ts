@@ -16,9 +16,13 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  const limit = await checkRateLimit(`paystack:init:${clientIp}:${user.id}`, 4, 10 * 60 * 1000);
-  if (!limit.allowed) {
-    return NextResponse.redirect(new URL("/activate?payment_error=rate_limited", request.url));
+  try {
+    const limit = await checkRateLimit(`paystack:init:${clientIp}:${user.id}`, 4, 10 * 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.redirect(new URL("/activate?payment_error=rate_limited", request.url));
+    }
+  } catch {
+    return NextResponse.redirect(new URL("/activate?payment_error=service_unavailable", request.url));
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -46,13 +50,18 @@ export async function POST(request: Request) {
   const amountKobo = SIGNUP_FEE_KOBO;
   const reference = `be-signup-${user.id.slice(0, 8)}-${Date.now()}`;
   const callbackUrl = new URL(`/api/paystack/callback`, request.url).toString();
-  const transaction = await initializePaystackTransaction({
-    amountKobo,
-    callbackUrl,
-    email: user.email,
-    profileId: user.id,
-    reference,
-  });
+  let transaction: Awaited<ReturnType<typeof initializePaystackTransaction>>;
+  try {
+    transaction = await initializePaystackTransaction({
+      amountKobo,
+      callbackUrl,
+      email: user.email,
+      profileId: user.id,
+      reference,
+    });
+  } catch {
+    return NextResponse.redirect(new URL("/activate?payment_error=payment_verification_failed", request.url));
+  }
 
   const { data: payment, error: paymentError } = await supabase.from("signup_payments").insert({
     access_code: transaction.access_code,
@@ -63,7 +72,7 @@ export async function POST(request: Request) {
   }).select("id").maybeSingle();
 
   if (paymentError) {
-    return NextResponse.redirect(new URL(`/activate?payment_error=${encodeURIComponent(paymentError.message)}`, request.url));
+    return NextResponse.redirect(new URL("/activate?payment_error=service_unavailable", request.url));
   }
 
   await writeAuditLog({

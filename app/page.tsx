@@ -7,6 +7,7 @@ import {
   CreditCard,
   Eye,
   EyeOff,
+  LoaderCircle,
   LockKeyhole,
   Mail,
   ShieldCheck,
@@ -15,6 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { signInAction, signUpAction } from "@/app/auth/actions";
 import { ByteEarnLogo } from "@/components/brand/byte-earn-logo";
 import { UsernameField } from "@/components/forms/username-field";
@@ -51,7 +53,7 @@ export default function AuthGatewayPage() {
   return (
     <main className="min-h-screen text-[11px] text-white lg:overflow-hidden">
       <section className="grid min-h-screen lg:grid-cols-[1.02fr_0.98fr]">
-        <div className="relative flex min-h-[48svh] flex-col justify-between overflow-hidden border-b border-white/10 px-4 py-5 sm:px-6 lg:min-h-screen lg:border-b-0 lg:border-r lg:px-10 lg:py-8">
+        <div className="relative hidden min-h-[48svh] flex-col justify-between overflow-hidden border-b border-white/10 px-4 py-5 sm:px-6 lg:flex lg:min-h-screen lg:border-b-0 lg:border-r lg:px-10 lg:py-8">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(95,215,255,0.26),transparent_20rem),linear-gradient(150deg,rgba(10,14,26,0.42),rgba(3,7,18,0.94)_60%),url('https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center"
@@ -72,10 +74,10 @@ export default function AuthGatewayPage() {
               AI social earning network
             </div>
             <h1 className="max-w-lg text-[28px] font-semibold leading-[1.04] tracking-normal">
-              Pay once. Post, share, watch, and earn from your network.
+              Join a creator network for posting, referrals, and sponsored opportunities.
             </h1>
             <p className="mt-5 max-w-md leading-5 text-slate-200">
-              byte-earn gates the network with verified activation, then routes every creator into profile setup and referral growth.
+              byte-earn uses a verified activation flow, then gives creators a clear path into profile setup and referral tracking.
             </p>
           </div>
 
@@ -90,8 +92,8 @@ export default function AuthGatewayPage() {
           </div>
         </div>
 
-        <div className="flex items-start justify-center px-4 py-6 sm:px-6 lg:h-screen lg:min-h-screen lg:overflow-y-auto lg:px-10">
-          <div className="w-full max-w-[440px] lg:sticky lg:top-6">
+        <div className="flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:h-screen lg:min-h-screen lg:items-start lg:overflow-y-auto lg:px-10 lg:pt-[max(1.5rem,calc((100svh-740px)/2))]">
+          <div className="w-full max-w-[440px]">
             <div className="glass-strong p-4 sm:p-5">
               <div className="mb-4 grid grid-cols-2 gap-2 rounded-[5px] border border-white/10 bg-white/[0.045] p-1">
                 <button
@@ -130,7 +132,7 @@ export default function AuthGatewayPage() {
                         className="min-h-9 border border-white/10 bg-white/[0.055] px-2.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/55"
                         name="displayName"
                         placeholder="Amina Kareem"
-                      required
+                        required
                         type="text"
                       />
                     </label>
@@ -146,6 +148,7 @@ export default function AuthGatewayPage() {
                       className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
                       name="email"
                       placeholder="you@example.com"
+                      required
                       type="email"
                     />
                   </div>
@@ -161,7 +164,9 @@ export default function AuthGatewayPage() {
                       id="auth-password"
                       className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
                       name="password"
+                      minLength={8}
                       placeholder="Minimum 8 characters"
+                      required
                       type={showPassword ? "text" : "password"}
                     />
                     <button
@@ -187,16 +192,10 @@ export default function AuthGatewayPage() {
                   </label>
                 ) : null}
 
-                <button
-                  className="mt-1 inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200"
-                  type="submit"
-                >
-                  {mode === "signup" ? "Continue to activation" : "Open dashboard"}
-                  <ArrowRight className="size-4" />
-                </button>
+                <AuthSubmitButton mode={mode} />
               </form>
 
-              <div className="mt-5 rounded-[5px] border border-cyan-200/15 bg-cyan-300/8 p-3">
+              <div className="mt-5 hidden rounded-[5px] border border-cyan-200/15 bg-cyan-300/8 p-3 lg:block">
                 <div className="flex items-start gap-3">
                   <BadgeCheck className="mt-0.5 size-5 shrink-0 text-cyan-200" />
                   <div>
@@ -209,7 +208,7 @@ export default function AuthGatewayPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2">
+            <div className="mt-4 hidden gap-2 lg:grid">
               {activationSteps.map((step, index) => (
                 <div
                   className="flex items-center gap-3 rounded-[5px] border border-white/10 bg-white/[0.045] px-3 py-3 text-slate-300 backdrop-blur"
@@ -226,6 +225,21 @@ export default function AuthGatewayPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function AuthSubmitButton({ mode }: { mode: AuthMode }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="mt-1 inline-flex min-h-10 items-center justify-center gap-2 rounded-[5px] bg-cyan-300 px-3 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={pending}
+      type="submit"
+    >
+      {pending ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+      {pending ? "Working..." : mode === "signup" ? "Continue to activation" : "Open dashboard"}
+    </button>
   );
 }
 

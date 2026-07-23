@@ -12,10 +12,13 @@
 
 ## Database
 
-- Run all migrations through `0007_phase8_hardening.sql`.
+- Run all journaled migrations through `0046_public_withdrawal_rpc_wrapper.sql`.
+- Confirm `0043`, `0044`, `0045`, and `0046` are present in the migration journal and applied in the hosted database.
 - Confirm `private.is_admin()` exists in the private schema.
+- Confirm `public.request_withdrawal_atomically()` is callable by an authenticated user and rejects another profile ID.
 - Confirm every public table has RLS enabled.
 - Confirm `post-images`, `post-videos`, and `post-audio` buckets exist with the expected MIME and size limits.
+- Confirm the `task-media` and `badge-images` buckets exist before enabling sponsored tasks or badge uploads.
 - Promote the intended admin account after the auth user exists.
 
 ## Security

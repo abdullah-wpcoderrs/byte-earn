@@ -113,7 +113,7 @@ export function UploadProvider({ children, userId }: { children: ReactNode; user
         } catch (error) {
           const code = error instanceof UploadValidationError ? error.message : "";
           setUpload({
-            message: errorMessages[code] ?? (error instanceof Error ? error.message : "Upload failed."),
+            message: errorMessages[code] ?? "Upload failed. Please try again.",
             percent: 100,
             status: "error",
           });

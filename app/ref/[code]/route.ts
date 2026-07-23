@@ -8,7 +8,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   const rawCode = code.trim();
   let resolvedCode = rawCode;
 
-  // Try to decode from Base64
   try {
     const decoded = Buffer.from(rawCode, "base64").toString("utf8");
     const isValidCode = /^[a-z0-9_]{3,24}$/i.test(decoded);
@@ -18,19 +17,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       resolvedCode = decoded;
     }
   } catch {
-    // Fallback to original raw parameter if Base64 fails to decode
+    // Keep the original referral parameter when decoding is not possible.
   }
 
   const supabase = await createClient();
+  const lookupClient = hasSupabaseAdminKey() ? createAdminClient() : supabase;
   let referrerId: string | null = null;
   let referralCode = resolvedCode.toUpperCase();
-
-  // If resolvedCode is a UUID (profileId fallback), resolve their clean alphanumeric referral code
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(resolvedCode);
 
   try {
     if (isUUID) {
-      const { data: referrer } = await supabase
+      const { data: referrer } = await lookupClient
         .from("profiles")
         .select("id, referral_code")
         .eq("id", resolvedCode)
@@ -41,7 +39,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
         referralCode = referrer.referral_code.toUpperCase();
       }
     } else {
-      const { data: referrer } = await supabase
+      const { data: referrer } = await lookupClient
         .from("profiles")
         .select("id")
         .eq("referral_code", referralCode)
@@ -51,11 +49,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
         referrerId = referrer.id;
       }
     }
-  } catch (err) {
-    console.error("Error resolving referrer profile:", err);
+  } catch (error) {
+    console.error("Error resolving referrer profile:", error);
   }
 
-  // Obfuscate the referralCode in the redirect query parameter to keep it invisible in address bar
   const encodedRefParam = btoa(referralCode);
   const response = NextResponse.redirect(new URL(`/?ref=${encodeURIComponent(encodedRefParam)}`, request.url));
   const clientIp = getClientIp(request.headers);
@@ -69,15 +66,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   });
 
   try {
-    // 1. Prevent self-referrals if the user is logged in
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (user && user.id === referrerId) {
       return response;
     }
 
-    // 2. Prevent self-referrals if client IP matches referrer's latest task session IP
     if (referrerId) {
-      const { data: lastReferrerSession } = await supabase
+      const { data: lastReferrerSession } = await lookupClient
         .from("task_sessions")
         .select("ip_address")
         .eq("profile_id", referrerId)
@@ -91,11 +89,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
     }
 
     const limit = await checkRateLimit(`referral:${clientIp}:${referralCode}`, 30, 60 * 60 * 1000);
-    if (!limit.allowed) {
-      return response;
-    }
-
-    if (!hasSupabaseAdminKey()) {
+    if (!limit.allowed || !hasSupabaseAdminKey()) {
       return response;
     }
 
@@ -107,7 +101,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       user_agent: request.headers.get("user-agent"),
     });
   } catch {
-    // Referral cookies still preserve attribution if database tracking is unavailable locally.
+    // Referral cookies preserve signup attribution if analytics is unavailable locally.
   }
 
   return response;

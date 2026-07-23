@@ -2,10 +2,20 @@
 
 import { Bookmark, Heart, MessageCircle, Share2 } from "lucide-react";
 import { useState, useTransition } from "react";
+
+
 import { addCommentAction, recordShareAction, toggleBookmarkAction, toggleLikeAction } from "@/app/(app)/posts/actions";
 import { Sheet } from "@/components/ui/sheet";
 import type { FeedComment } from "@/lib/posts";
 
+function actionErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback;
+  if (error.message.includes("Sign in")) return "Sign in to continue.";
+  if (error.message.includes("cannot interact")) return "Your account cannot interact with posts right now.";
+  if (error.message.includes("Comment must")) return error.message;
+  if (error.message.includes("Too many requests")) return "Too many attempts. Please wait and try again.";
+  return fallback;
+}
 type PostActionsProps = {
   bookmarkedByViewer: boolean;
   bookmarksCount: number;
@@ -78,7 +88,7 @@ export function PostActions({
       } catch (error) {
         setLiked(!nextLiked);
         setLocalLikes((count) => Math.max(0, count + (nextLiked ? -1 : 1)));
-        setMessage(error instanceof Error ? error.message : "Could not update like.");
+        setMessage(actionErrorMessage(error, "Could not update like."));
       }
     });
   }
@@ -97,7 +107,7 @@ export function PostActions({
       } catch (error) {
         setBookmarked(!nextBookmarked);
         setLocalBookmarks((count) => Math.max(0, count + (nextBookmarked ? -1 : 1)));
-        setMessage(error instanceof Error ? error.message : "Could not update bookmark.");
+        setMessage(actionErrorMessage(error, "Could not update bookmark."));
       }
     });
   }
@@ -118,7 +128,7 @@ export function PostActions({
         setCommentBody("");
         setMessage("Comment posted.");
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Could not post comment.");
+        setMessage(actionErrorMessage(error, "Could not post comment."));
       }
     });
   }
